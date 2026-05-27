@@ -1,0 +1,43 @@
+{
+  "manifest_version": 2,
+  "name": "Save to Blombooru",
+  "version": "2.0",
+  "description": "Right-click to upload images/videos to Blombooru",
+
+  "permissions": [
+    "contextMenus",
+    "storage",
+	"<all_urls>",
+	"notifications"
+  ],
+
+  "optional_permissions": [
+    "http://*/",
+    "https://*/"
+  ],
+
+  "background": {
+    "scripts": ["auth.js", "background.js"],
+    "persistent": true
+  },
+
+  "browser_action": {
+    "default_icon": {
+      "16": "icon.png",
+      "32": "icon.png",
+      "48": "icon.png"
+    },
+    "default_title": "Blombooru Uploader settings"
+  },
+
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false,
+    "browser_style": true
+  },
+
+  "icons": {
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}
