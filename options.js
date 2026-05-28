@@ -1,8 +1,26 @@
+function localizePage() {
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const msg = browser.i18n.getMessage(el.getAttribute("data-i18n"));
+    if (msg) {
+      el.textContent = msg;
+    }
+  });
+
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    const msg = browser.i18n.getMessage(el.getAttribute("data-i18n-placeholder"));
+    if (msg) {
+      el.placeholder = msg;
+    }
+  });
+}
+
+localizePage();
+
 const saveButton = document.getElementById("save");
 const saveStatusEl = document.getElementById("status");
 const altBooruEnabledCheckbox = document.getElementById("altBooruEnabled");
 const altServerSection = document.getElementById("altServerSection");
-const defaultSaveLabel = saveButton.textContent;
+const defaultSaveLabel = browser.i18n.getMessage("buttonSaveSettings");
 
 function showSaveStatus(message, type) {
   saveStatusEl.textContent = message;
@@ -73,7 +91,7 @@ function createServerManager(elements, onStateChange) {
       try {
         originPattern = getOriginPattern(booruUrl);
       } catch (e) {
-        showUrlStatus("Invalid URL.", "error");
+        showUrlStatus(browser.i18n.getMessage("errorInvalidUrl"), "error");
         connectionValid = false;
         setGrantAccessVisible(false);
         return;
@@ -96,12 +114,12 @@ function createServerManager(elements, onStateChange) {
       if (requestId !== validationRequestId) return;
 
       if (!hasPermission) {
-        showUrlStatus("Browser permission required to test this address.", "info");
+        showUrlStatus(browser.i18n.getMessage("statusPermissionRequired"), "info");
         setGrantAccessVisible(true);
         return;
       }
 
-      showUrlStatus("Testing connection...", "info");
+      showUrlStatus(browser.i18n.getMessage("statusTestingConnection"), "info");
 
       try {
         await testBlombooruConnection(booruUrl);
@@ -114,7 +132,7 @@ function createServerManager(elements, onStateChange) {
       if (requestId !== validationRequestId) return;
 
       connectionValid = true;
-      showUrlStatus("Connection successful!", "success");
+      showUrlStatus(browser.i18n.getMessage("statusConnectionSuccess"), "success");
     } finally {
       if (requestId === validationRequestId) {
         onStateChange();
@@ -226,15 +244,15 @@ saveButton.addEventListener("click", async () => {
     });
 
     saveButton.classList.add("saved");
-    saveButton.textContent = "Saved!";
-    showSaveStatus("Settings saved.", "success");
+    saveButton.textContent = browser.i18n.getMessage("buttonSaved");
+    showSaveStatus(browser.i18n.getMessage("statusSettingsSaved"), "success");
 
     window.setTimeout(() => {
       saveButton.classList.remove("saved");
       saveButton.textContent = defaultSaveLabel;
     }, 2000);
   } catch (e) {
-    showSaveStatus("Failed to save settings.", "error");
+    showSaveStatus(browser.i18n.getMessage("errorSaveFailed"), "error");
   } finally {
     refreshSaveButton();
   }

@@ -1,14 +1,16 @@
 {
   "manifest_version": 2,
-  "name": "Save to Blombooru",
+  "default_locale": "en",
+  "name": "__MSG_extensionName__",
   "version": "2.0",
-  "description": "Right-click to upload images/videos to Blombooru",
+  "description": "__MSG_extensionDescription__",
 
   "permissions": [
     "contextMenus",
     "storage",
-	"<all_urls>",
-	"notifications"
+    "tabs",
+    "<all_urls>",
+    "notifications"
   ],
 
   "optional_permissions": [
@@ -17,7 +19,7 @@
   ],
 
   "background": {
-    "scripts": ["auth.js", "background.js"],
+    "scripts": ["auth.js", "media-context.js", "background.js"],
     "persistent": true
   },
 
@@ -27,7 +29,7 @@
       "32": "icon.png",
       "48": "icon.png"
     },
-    "default_title": "Blombooru Uploader settings"
+    "default_title": "__MSG_browserActionTitle__"
   },
 
   "options_ui": {

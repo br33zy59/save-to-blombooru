@@ -1,0 +1,147 @@
+{
+  "extensionName": {
+    "message": "Guardar en Blombooru",
+    "description": "Nombre de la extensión mostrado en el navegador"
+  },
+  "extensionDescription": {
+    "message": "Clic derecho para subir imágenes y vídeos a Blombooru",
+    "description": "Descripción de la extensión"
+  },
+  "browserActionTitle": {
+    "message": "Ajustes del cargador de Blombooru",
+    "description": "Información emergente del botón de la barra de herramientas"
+  },
+  "headingServerDetails": {
+    "message": "Detalles del servidor"
+  },
+  "labelServerAddress": {
+    "message": "Dirección del servidor Blombooru:"
+  },
+  "placeholderServerAddress": {
+    "message": "Introduzca la dirección de Blombooru aquí"
+  },
+  "buttonGrantAccess": {
+    "message": "Conceder acceso"
+  },
+  "labelFriendlyName": {
+    "message": "Nombre descriptivo (opcional):"
+  },
+  "placeholderFriendlyNameHome": {
+    "message": "p. ej. Casa"
+  },
+  "placeholderFriendlyNameWork": {
+    "message": "p. ej. Trabajo"
+  },
+  "labelDefaultRating": {
+    "message": "Clasificación predeterminada:"
+  },
+  "ratingSafe": {
+    "message": "Seguro"
+  },
+  "ratingQuestionable": {
+    "message": "Cuestionable"
+  },
+  "ratingExplicit": {
+    "message": "Explícito"
+  },
+  "checkboxAltServer": {
+    "message": "Añadir servidor alternativo"
+  },
+  "headingAltServer": {
+    "message": "Servidor alternativo"
+  },
+  "buttonSaveSettings": {
+    "message": "Guardar configuración"
+  },
+  "buttonSaved": {
+    "message": "¡Guardado!"
+  },
+  "errorInvalidUrl": {
+    "message": "URL no válida."
+  },
+  "statusPermissionRequired": {
+    "message": "Se requiere permiso del navegador para probar esta dirección."
+  },
+  "statusTestingConnection": {
+    "message": "Probando conexión…"
+  },
+  "statusConnectionSuccess": {
+    "message": "¡Conexión correcta!"
+  },
+  "statusSettingsSaved": {
+    "message": "Configuración guardada."
+  },
+  "errorSaveFailed": {
+    "message": "No se pudo guardar la configuración."
+  },
+  "errorCouldNotReachServer": {
+    "message": "No se pudo contactar con el servidor. Compruebe la dirección e inténtelo de nuevo."
+  },
+  "errorAuthRequiredInstance": {
+    "message": "Esta instancia de Blombooru requiere autenticación. Use por ahora una instancia sin autenticación API."
+  },
+  "errorUnexpectedStatus": {
+    "message": "El servidor devolvió $1$. Puede que no sea una instancia de Blombooru.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "404"
+      }
+    }
+  },
+  "errorInvalidJson": {
+    "message": "La respuesta del servidor no era JSON válido."
+  },
+  "errorNotBlombooruApi": {
+    "message": "La respuesta no parece la API de Blombooru."
+  },
+  "contextMenuBase": {
+    "message": "Guardar en Blombooru"
+  },
+  "contextMenuWithName": {
+    "message": "Guardar en Blombooru ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Casa"
+      }
+    }
+  },
+  "contextMenuAlt": {
+    "message": "Guardar en Blombooru (alternativo)"
+  },
+  "errorUploadAuthRequired": {
+    "message": "Error al subir: esta instancia de Blombooru requiere autenticación. Use por ahora una instancia sin autenticación."
+  },
+  "errorUploadMethodNotAllowed": {
+    "message": "Error al subir: método no permitido. Compruebe la URL base de Blombooru."
+  },
+  "errorUploadHttp": {
+    "message": "Error al subir: $1$ $2$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "500"
+      },
+      "2": {
+        "content": "$2",
+        "example": "Internal Server Error"
+      }
+    }
+  },
+  "errorAltServerNotConfigured": {
+    "message": "El servidor alternativo no está configurado."
+  },
+  "errorDownloadFailed": {
+    "message": "Error al descargar: $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "404"
+      }
+    }
+  },
+  "notificationUploadFailedTitle": {
+    "message": "Error al subir"
+  }
+}

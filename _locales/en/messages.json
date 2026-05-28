@@ -1,0 +1,147 @@
+{
+  "extensionName": {
+    "message": "Save to Blombooru",
+    "description": "Extension name shown in browser UI"
+  },
+  "extensionDescription": {
+    "message": "Right-click to upload images/videos to Blombooru",
+    "description": "Extension description"
+  },
+  "browserActionTitle": {
+    "message": "Blombooru Uploader settings",
+    "description": "Toolbar button tooltip"
+  },
+  "headingServerDetails": {
+    "message": "Server Details"
+  },
+  "labelServerAddress": {
+    "message": "Blombooru Server Address:"
+  },
+  "placeholderServerAddress": {
+    "message": "Enter your Blombooru address here"
+  },
+  "buttonGrantAccess": {
+    "message": "Grant access"
+  },
+  "labelFriendlyName": {
+    "message": "Friendly name (optional):"
+  },
+  "placeholderFriendlyNameHome": {
+    "message": "e.g. Home"
+  },
+  "placeholderFriendlyNameWork": {
+    "message": "e.g. Work"
+  },
+  "labelDefaultRating": {
+    "message": "Default rating:"
+  },
+  "ratingSafe": {
+    "message": "Safe"
+  },
+  "ratingQuestionable": {
+    "message": "Questionable"
+  },
+  "ratingExplicit": {
+    "message": "Explicit"
+  },
+  "checkboxAltServer": {
+    "message": "Add alternative server"
+  },
+  "headingAltServer": {
+    "message": "Alternative server"
+  },
+  "buttonSaveSettings": {
+    "message": "Save Settings"
+  },
+  "buttonSaved": {
+    "message": "Saved!"
+  },
+  "errorInvalidUrl": {
+    "message": "Invalid URL."
+  },
+  "statusPermissionRequired": {
+    "message": "Browser permission required to test this address."
+  },
+  "statusTestingConnection": {
+    "message": "Testing connection..."
+  },
+  "statusConnectionSuccess": {
+    "message": "Connection successful!"
+  },
+  "statusSettingsSaved": {
+    "message": "Settings saved."
+  },
+  "errorSaveFailed": {
+    "message": "Failed to save settings."
+  },
+  "errorCouldNotReachServer": {
+    "message": "Could not reach the server. Check the address and try again."
+  },
+  "errorAuthRequiredInstance": {
+    "message": "This Blombooru instance requires authentication. Use an instance without API auth for now."
+  },
+  "errorUnexpectedStatus": {
+    "message": "Server returned $1$. This may not be a Blombooru instance.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "404"
+      }
+    }
+  },
+  "errorInvalidJson": {
+    "message": "Server response was not valid JSON."
+  },
+  "errorNotBlombooruApi": {
+    "message": "Response does not look like a Blombooru API."
+  },
+  "contextMenuBase": {
+    "message": "Save to Blombooru"
+  },
+  "contextMenuWithName": {
+    "message": "Save to Blombooru ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Home"
+      }
+    }
+  },
+  "contextMenuAlt": {
+    "message": "Save to Blombooru (alternative)"
+  },
+  "errorUploadAuthRequired": {
+    "message": "Upload failed: this Blombooru instance requires authentication. Use a no-auth instance for now."
+  },
+  "errorUploadMethodNotAllowed": {
+    "message": "Upload failed: method not allowed. Check your Blombooru base URL."
+  },
+  "errorUploadHttp": {
+    "message": "Upload failed: $1$ $2$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "500"
+      },
+      "2": {
+        "content": "$2",
+        "example": "Internal Server Error"
+      }
+    }
+  },
+  "errorAltServerNotConfigured": {
+    "message": "Alternative server is not configured."
+  },
+  "errorDownloadFailed": {
+    "message": "Download failed: $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "404"
+      }
+    }
+  },
+  "notificationUploadFailedTitle": {
+    "message": "Upload Failed"
+  }
+}

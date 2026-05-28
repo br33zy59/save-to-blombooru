@@ -2,7 +2,6 @@ console.log("=== Blombooru Uploader (MV3) LOADED ===");
 
 const PRIMARY_MENU_ID = "save-to-blombooru";
 const ALT_MENU_ID = "save-to-blombooru-alt";
-const MENU_BASE_TITLE = "Save to Blombooru";
 
 const BADGE_CLEAR_MS = 2500;
 const BADGE_SUCCESS = "✓";
@@ -84,24 +83,92 @@ function finishUpload(outcome) {
   clearToolbarBadgeSoon();
 }
 
-browser.contextMenus.create({
-  id: PRIMARY_MENU_ID,
-  title: MENU_BASE_TITLE,
-  contexts: ["image", "video"]
-});
+function getServerOrigin(booruUrl) {
+  if (!booruUrl) {
+    return null;
+  }
+
+  try {
+    return new URL(booruUrl.trim()).origin;
+  } catch (e) {
+    return null;
+  }
+}
+
+function isSameServerOrigin(pageUrl, booruUrl) {
+  const pageOrigin = getServerOrigin(pageUrl);
+  const serverOrigin = getServerOrigin(booruUrl);
+
+  if (!pageOrigin || !serverOrigin) {
+    return false;
+  }
+
+  return pageOrigin === serverOrigin;
+}
+
+function formatCapturedOn() {
+  const formatted = new Date().toLocaleString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZoneName: "short"
+  });
+
+  return `Captured on: ${formatted}`;
+}
+
+function buildUploadDescription(captionText) {
+  const capturedLine = formatCapturedOn();
+  const caption = (captionText || "").trim();
+
+  if (caption) {
+    return `${caption}\n\n${capturedLine}`;
+  }
+
+  return capturedLine;
+}
+
+async function captureMediaCaption(tabId, srcUrl) {
+  if (tabId < 0 || !srcUrl) {
+    return "";
+  }
+
+  try {
+    const results = await browser.tabs.executeScript(tabId, {
+      func: extractMediaCaptionInPage,
+      args: [srcUrl]
+    });
+    return results?.[0] || "";
+  } catch (e) {
+    return "";
+  }
+}
 
 browser.contextMenus.onClicked.addListener(async (info) => {
   if (info.menuItemId !== PRIMARY_MENU_ID && info.menuItemId !== ALT_MENU_ID) {
     return;
   }
 
-  const filename = info.srcUrl.split("/").pop() || "upload.bin";
   const server = info.menuItemId === ALT_MENU_ID ? "alt" : "primary";
+  const settings = await browser.storage.local.get(["booruUrl", "altBooruUrl"]);
+  const booruUrl = server === "alt" ? settings.altBooruUrl : settings.booruUrl;
+
+  if (isSameServerOrigin(info.pageUrl, booruUrl)) {
+    return;
+  }
+
+  const filename = info.srcUrl.split("/").pop() || "upload.bin";
+  const caption = await captureMediaCaption(info.tabId, info.srcUrl);
+  const description = buildUploadDescription(caption);
 
   performUpload({
     srcUrl: info.srcUrl,
     filename,
     source: info.srcUrl,
+    description,
     server
   });
 });
@@ -112,22 +179,106 @@ browser.storage.onChanged.addListener((changes, area) => {
   }
 });
 
+async function setContextMenuVisible(menuId, visible) {
+  try {
+    await browser.contextMenus.update(menuId, { visible });
+  } catch (e) {
+    // Item may not exist (e.g. server not configured).
+  }
+}
+
+// contextMenus.update(visible) applies on the *next* menu open, not the current one.
+// Sync when the active tab changes so visibility is correct before the user right-clicks.
+async function syncContextMenuVisibilityForPageUrl(pageUrl) {
+  if (!pageUrl) {
+    return;
+  }
+
+  const settings = await browser.storage.local.get([
+    "booruUrl",
+    "altBooruEnabled",
+    "altBooruUrl"
+  ]);
+
+  if (settings.booruUrl) {
+    await setContextMenuVisible(
+      PRIMARY_MENU_ID,
+      !isSameServerOrigin(pageUrl, settings.booruUrl)
+    );
+  }
+
+  if (settings.altBooruEnabled && settings.altBooruUrl) {
+    await setContextMenuVisible(
+      ALT_MENU_ID,
+      !isSameServerOrigin(pageUrl, settings.altBooruUrl)
+    );
+  }
+}
+
+async function syncContextMenuVisibilityForTab(tabId) {
+  try {
+    const tab = await browser.tabs.get(tabId);
+    await syncContextMenuVisibilityForPageUrl(tab.url);
+  } catch (e) {
+    // Tab may have been closed.
+  }
+}
+
+async function syncContextMenuVisibilityForActiveTab() {
+  const [activeTab] = await browser.tabs.query({
+    active: true,
+    currentWindow: true
+  });
+
+  if (activeTab?.url) {
+    await syncContextMenuVisibilityForPageUrl(activeTab.url);
+  }
+}
+
+browser.tabs.onActivated.addListener((activeInfo) => {
+  syncContextMenuVisibilityForTab(activeInfo.tabId);
+});
+
+browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!changeInfo.url && changeInfo.status !== "complete") {
+    return;
+  }
+
+  browser.tabs.query({ active: true, currentWindow: true }).then(([activeTab]) => {
+    if (activeTab?.id === tabId) {
+      syncContextMenuVisibilityForTab(tabId);
+    }
+  });
+});
+
+browser.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId === browser.windows.WINDOW_ID_NONE) {
+    return;
+  }
+
+  browser.tabs.query({ active: true, windowId }).then(([activeTab]) => {
+    if (activeTab?.url) {
+      syncContextMenuVisibilityForPageUrl(activeTab.url);
+    }
+  });
+});
+
 function getMenuTitle(friendlyName, hasAltServer, isAlt) {
   const name = (friendlyName || "").trim();
 
   if (name) {
-    return `${MENU_BASE_TITLE} (${name})`;
+    return browser.i18n.getMessage("contextMenuWithName", name);
   }
 
   if (!hasAltServer) {
-    return MENU_BASE_TITLE;
+    return browser.i18n.getMessage("contextMenuBase");
   }
 
   if (isAlt) {
-    return `${MENU_BASE_TITLE} (Alt)`;
+    return browser.i18n.getMessage("contextMenuAlt");
   }
 
-  return MENU_BASE_TITLE;
+  return browser.i18n.getMessage("contextMenuBase");
 }
 
 async function updateContextMenus() {
@@ -139,38 +290,57 @@ async function updateContextMenus() {
     "altServerName"
   ]);
 
+  const hasPrimary = Boolean(settings.booruUrl);
   const hasAlt = Boolean(settings.altBooruEnabled && settings.altBooruUrl);
-  const primaryTitle = getMenuTitle(settings.serverName, hasAlt, false);
 
-  browser.contextMenus.update(PRIMARY_MENU_ID, { title: primaryTitle });
-
-  browser.contextMenus.remove(ALT_MENU_ID, () => {
+  browser.contextMenus.remove(PRIMARY_MENU_ID, () => {
     if (browser.runtime.lastError) {
       // Menu item did not exist yet.
     }
 
-    if (hasAlt) {
-      const altTitle = getMenuTitle(settings.altServerName, true, true);
+    if (hasPrimary) {
+      const primaryTitle = getMenuTitle(settings.serverName, hasAlt, false);
 
       browser.contextMenus.create({
-        id: ALT_MENU_ID,
-        title: altTitle,
+        id: PRIMARY_MENU_ID,
+        title: primaryTitle,
         contexts: ["image", "video"]
       });
     }
+
+    browser.contextMenus.remove(ALT_MENU_ID, () => {
+      if (browser.runtime.lastError) {
+        // Menu item did not exist yet.
+      }
+
+      if (hasAlt) {
+        const altTitle = getMenuTitle(settings.altServerName, true, true);
+
+        browser.contextMenus.create({
+          id: ALT_MENU_ID,
+          title: altTitle,
+          contexts: ["image", "video"]
+        });
+      }
+
+      syncContextMenuVisibilityForActiveTab();
+    });
   });
 }
 
 function uploadErrorMessage(status, bodyText) {
   if (status === 401 || status === 403) {
-    return "Upload failed: this Blombooru instance requires authentication. Use a no-auth instance for now.";
+    return browser.i18n.getMessage("errorUploadAuthRequired");
   }
 
   if (status === 405) {
-    return "Upload failed: method not allowed. Check your Blombooru base URL.";
+    return browser.i18n.getMessage("errorUploadMethodNotAllowed");
   }
 
-  return `Upload failed: ${status} ${bodyText}`;
+  return browser.i18n.getMessage("errorUploadHttp", [
+    String(status),
+    String(bodyText ?? "")
+  ]);
 }
 
 async function performUpload(data) {
@@ -191,7 +361,7 @@ async function performUpload(data) {
     const hasAlt = Boolean(settings.altBooruEnabled && settings.altBooruUrl);
 
     if (useAlt && !hasAlt) {
-      throw new Error("Alternative server is not configured.");
+      throw new Error(browser.i18n.getMessage("errorAltServerNotConfigured"));
     }
 
     const booruUrl = (useAlt ? settings.altBooruUrl : settings.booruUrl).replace(/\/$/, "");
@@ -201,7 +371,9 @@ async function performUpload(data) {
     const mediaResponse = await fetch(data.srcUrl);
 
     if (!mediaResponse.ok) {
-      throw new Error(`Download failed: ${mediaResponse.status}`);
+      throw new Error(
+        browser.i18n.getMessage("errorDownloadFailed", String(mediaResponse.status))
+      );
     }
 
     const blob = await mediaResponse.blob();
@@ -224,6 +396,34 @@ async function performUpload(data) {
       throw new Error(uploadErrorMessage(uploadResponse.status, bodyText));
     }
 
+    if (data.description) {
+      let uploaded;
+      try {
+        uploaded = await uploadResponse.json();
+      } catch (e) {
+        throw new Error(browser.i18n.getMessage("errorInvalidJson"));
+      }
+
+      if (uploaded?.id == null) {
+        console.warn("Upload succeeded but response had no media id; description not saved.");
+      } else {
+        const patchResponse = await fetch(getMediaItemUrl(booruUrl, uploaded.id), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: data.description })
+        });
+
+        if (!patchResponse.ok) {
+          const bodyText = await patchResponse.text();
+          console.warn(
+            "Upload succeeded but description could not be saved:",
+            patchResponse.status,
+            bodyText
+          );
+        }
+      }
+    }
+
     finishUpload("success");
   } catch (err) {
     console.error(err);
@@ -232,7 +432,7 @@ async function performUpload(data) {
     browser.notifications.create({
       type: "basic",
       iconUrl: "icon.png",
-      title: "Upload Failed",
+      title: browser.i18n.getMessage("notificationUploadFailedTitle"),
       message: err.message
     });
   }

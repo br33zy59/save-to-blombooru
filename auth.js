@@ -12,33 +12,38 @@ function getMediaUploadUrl(booruUrl) {
   return `${base}/api/media/`;
 }
 
+function getMediaItemUrl(booruUrl, mediaId) {
+  const base = booruUrl.replace(/\/$/, "");
+  return `${base}/api/media/${mediaId}`;
+}
+
 async function testBlombooruConnection(booruUrl) {
   let response;
   try {
     response = await fetch(getMediaListUrl(booruUrl));
   } catch (err) {
-    throw new Error("Could not reach the server. Check the address and try again.");
+    throw new Error(browser.i18n.getMessage("errorCouldNotReachServer"));
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error(
-      "This Blombooru instance requires authentication. Use an instance without API auth for now."
-    );
+    throw new Error(browser.i18n.getMessage("errorAuthRequiredInstance"));
   }
 
   if (!response.ok) {
-    throw new Error(`Server returned ${response.status}. This may not be a Blombooru instance.`);
+    throw new Error(
+      browser.i18n.getMessage("errorUnexpectedStatus", String(response.status))
+    );
   }
 
   let data;
   try {
     data = await response.json();
   } catch (err) {
-    throw new Error("Server response was not valid JSON.");
+    throw new Error(browser.i18n.getMessage("errorInvalidJson"));
   }
 
   if (!Array.isArray(data.items) || typeof data.total !== "number") {
-    throw new Error("Response does not look like a Blombooru API.");
+    throw new Error(browser.i18n.getMessage("errorNotBlombooruApi"));
   }
 }
 

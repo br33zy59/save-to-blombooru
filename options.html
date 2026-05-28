@@ -1,217 +1,217 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="color-scheme" content="light dark">
-  <style>
-    :root {
-      color-scheme: light dark;
-    }
-
-    html,
-    body {
-      background: Canvas;
-      color: CanvasText;
-    }
-
-    .field {
-      margin-bottom: 1em;
-    }
-
-    .field label {
-      display: block;
-      margin-bottom: 0.35em;
-    }
-
-    .field input[type="url"],
-    .field input[type="text"] {
-      width: 100%;
-      box-sizing: border-box;
-      background: Field;
-      color: FieldText;
-      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-      border-radius: 4px;
-      padding: 6px 8px;
-    }
-
-    .field input::placeholder {
-      color: GrayText;
-    }
-
-    .checkbox-row label {
-      display: flex;
-      align-items: center;
-      gap: 0.5em;
-      margin-bottom: 0;
-    }
-
-    .checkbox-row input[type="checkbox"] {
-      margin: 0;
-    }
-
-    .server-section {
-      margin-top: 1.5em;
-      padding-top: 1em;
-      border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
-    }
-
-    .server-section h3 {
-      margin: 0 0 1em;
-      font: caption;
-      font-size: 1.1em;
-      font-weight: 600;
-    }
-
-    .field-status {
-      margin: 0.35em 0 0;
-      min-height: 1.2em;
-      font-size: 0.95em;
-    }
-
-    .field-status.success {
-      color: light-dark(#058b00, #72e06a);
-    }
-
-    .field-status.error {
-      color: light-dark(#d70022, #ff8484);
-    }
-
-    .field-status.info {
-      color: GrayText;
-    }
-
-    .field-status.warning {
-      color: light-dark(#9a6700, #ffb86c);
-    }
-
-    .grant-access {
-      margin-top: 0.5em;
-    }
-
-    .rating-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75em;
-      margin-bottom: 1em;
-    }
-
-    .rating-row label {
-      margin: 0;
-      white-space: nowrap;
-    }
-
-    .rating-select {
-      background: Field;
-      color: FieldText;
-      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-      border-radius: 4px;
-      padding: 6px 8px;
-    }
-
-    .actions {
-      margin-top: 1.5em;
-    }
-
-    #save:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    #save.saved {
-      font-weight: 600;
-    }
-
-    #status {
-      margin-top: 0.75em;
-      min-height: 1.2em;
-    }
-
-    #status.success {
-      color: light-dark(#058b00, #72e06a);
-    }
-
-    #status.error {
-      color: light-dark(#d70022, #ff8484);
-    }
-
-    #status.info {
-      color: GrayText;
-    }
-  </style>
-</head>
-<body>
-  <section id="primaryServer">
-    <h3>Server Details</h3>
-
-    <div class="field">
-      <label for="booruUrl">Blombooru Server Address:</label>
-      <input id="booruUrl" type="url" placeholder="Enter your Blombooru address here">
-      <p id="urlStatus" class="field-status" aria-live="polite"></p>
-      <button type="button" id="grantAccess" class="grant-access" hidden>Grant access</button>
-    </div>
-
-    <!-- API key UI disabled until Blombooru upstream fix
-    <div class="field" id="apiKeySection" hidden>
-      <label for="apiKey">API Key:</label>
-      <input id="apiKey" type="text">
-    </div>
-    -->
-
-    <div class="field">
-      <label for="serverName">Friendly name (optional):</label>
-      <input id="serverName" type="text" placeholder="e.g. Home">
-    </div>
-
-    <div class="rating-row">
-      <label for="rating">Default rating:</label>
-      <select id="rating" class="rating-select">
-        <option value="safe">Safe</option>
-        <option value="questionable">Questionable</option>
-        <option value="explicit">Explicit</option>
-      </select>
-    </div>
-  </section>
-
-  <div class="field checkbox-row">
-    <label for="altBooruEnabled">
-      <input type="checkbox" id="altBooruEnabled">
-      Add alternative server
-    </label>
-  </div>
-
-  <section id="altServerSection" class="server-section" hidden>
-    <h3>Alternative server</h3>
-
-    <div class="field">
-      <label for="altBooruUrl">Blombooru Server Address:</label>
-      <input id="altBooruUrl" type="url" placeholder="Enter your Blombooru address here">
-      <p id="altUrlStatus" class="field-status" aria-live="polite"></p>
-      <button type="button" id="altGrantAccess" class="grant-access" hidden>Grant access</button>
-    </div>
-
-    <div class="field">
-      <label for="altServerName">Friendly name (optional):</label>
-      <input id="altServerName" type="text" placeholder="e.g. Work">
-    </div>
-
-    <!-- API key UI disabled — see primary server comment -->
-
-    <div class="rating-row">
-      <label for="altRating">Default rating:</label>
-      <select id="altRating" class="rating-select">
-        <option value="safe">Safe</option>
-        <option value="questionable">Questionable</option>
-        <option value="explicit">Explicit</option>
-      </select>
-    </div>
-  </section>
-
-  <div class="actions">
-    <button type="button" id="save">Save Settings</button>
-    <p id="status" aria-live="polite"></p>
-  </div>
-
-  <script src="auth.js"></script>
-  <script src="options.js"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light dark">
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    html,
+    body {
+      background: Canvas;
+      color: CanvasText;
+    }
+
+    .field {
+      margin-bottom: 1em;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 0.35em;
+    }
+
+    .field input[type="url"],
+    .field input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      background: Field;
+      color: FieldText;
+      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+      border-radius: 4px;
+      padding: 6px 8px;
+    }
+
+    .field input::placeholder {
+      color: GrayText;
+    }
+
+    .checkbox-row label {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: 0;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      margin: 0;
+    }
+
+    .server-section {
+      margin-top: 1.5em;
+      padding-top: 1em;
+      border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
+    }
+
+    .server-section h3 {
+      margin: 0 0 1em;
+      font: caption;
+      font-size: 1.1em;
+      font-weight: 600;
+    }
+
+    .field-status {
+      margin: 0.35em 0 0;
+      min-height: 1.2em;
+      font-size: 0.95em;
+    }
+
+    .field-status.success {
+      color: light-dark(#058b00, #72e06a);
+    }
+
+    .field-status.error {
+      color: light-dark(#d70022, #ff8484);
+    }
+
+    .field-status.info {
+      color: GrayText;
+    }
+
+    .field-status.warning {
+      color: light-dark(#9a6700, #ffb86c);
+    }
+
+    .grant-access {
+      margin-top: 0.5em;
+    }
+
+    .rating-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75em;
+      margin-bottom: 1em;
+    }
+
+    .rating-row label {
+      margin: 0;
+      white-space: nowrap;
+    }
+
+    .rating-select {
+      background: Field;
+      color: FieldText;
+      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+      border-radius: 4px;
+      padding: 6px 8px;
+    }
+
+    .actions {
+      margin-top: 1.5em;
+    }
+
+    #save:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    #save.saved {
+      font-weight: 600;
+    }
+
+    #status {
+      margin-top: 0.75em;
+      min-height: 1.2em;
+    }
+
+    #status.success {
+      color: light-dark(#058b00, #72e06a);
+    }
+
+    #status.error {
+      color: light-dark(#d70022, #ff8484);
+    }
+
+    #status.info {
+      color: GrayText;
+    }
+  </style>
+</head>
+<body>
+  <section id="primaryServer">
+    <h3 data-i18n="headingServerDetails"></h3>
+
+    <div class="field">
+      <label for="booruUrl" data-i18n="labelServerAddress"></label>
+      <input id="booruUrl" type="url" data-i18n-placeholder="placeholderServerAddress">
+      <p id="urlStatus" class="field-status" aria-live="polite"></p>
+      <button type="button" id="grantAccess" class="grant-access" data-i18n="buttonGrantAccess" hidden></button>
+    </div>
+
+    <!-- API key UI disabled until Blombooru upstream fix
+    <div class="field" id="apiKeySection" hidden>
+      <label for="apiKey">API Key:</label>
+      <input id="apiKey" type="text">
+    </div>
+    -->
+
+    <div class="field">
+      <label for="serverName" data-i18n="labelFriendlyName"></label>
+      <input id="serverName" type="text" data-i18n-placeholder="placeholderFriendlyNameHome">
+    </div>
+
+    <div class="rating-row">
+      <label for="rating" data-i18n="labelDefaultRating"></label>
+      <select id="rating" class="rating-select">
+        <option value="safe" data-i18n="ratingSafe"></option>
+        <option value="questionable" data-i18n="ratingQuestionable"></option>
+        <option value="explicit" data-i18n="ratingExplicit"></option>
+      </select>
+    </div>
+  </section>
+
+  <div class="field checkbox-row">
+    <label for="altBooruEnabled">
+      <input type="checkbox" id="altBooruEnabled">
+      <span data-i18n="checkboxAltServer"></span>
+    </label>
+  </div>
+
+  <section id="altServerSection" class="server-section" hidden>
+    <h3 data-i18n="headingAltServer"></h3>
+
+    <div class="field">
+      <label for="altBooruUrl" data-i18n="labelServerAddress"></label>
+      <input id="altBooruUrl" type="url" data-i18n-placeholder="placeholderServerAddress">
+      <p id="altUrlStatus" class="field-status" aria-live="polite"></p>
+      <button type="button" id="altGrantAccess" class="grant-access" data-i18n="buttonGrantAccess" hidden></button>
+    </div>
+
+    <div class="field">
+      <label for="altServerName" data-i18n="labelFriendlyName"></label>
+      <input id="altServerName" type="text" data-i18n-placeholder="placeholderFriendlyNameWork">
+    </div>
+
+    <!-- API key UI disabled — see primary server comment -->
+
+    <div class="rating-row">
+      <label for="altRating" data-i18n="labelDefaultRating"></label>
+      <select id="altRating" class="rating-select">
+        <option value="safe" data-i18n="ratingSafe"></option>
+        <option value="questionable" data-i18n="ratingQuestionable"></option>
+        <option value="explicit" data-i18n="ratingExplicit"></option>
+      </select>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button type="button" id="save" data-i18n="buttonSaveSettings"></button>
+    <p id="status" aria-live="polite"></p>
+  </div>
+
+  <script src="auth.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

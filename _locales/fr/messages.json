@@ -1,0 +1,147 @@
+{
+  "extensionName": {
+    "message": "Enregistrer sur Blombooru",
+    "description": "Nom de l'extension affiché dans le navigateur"
+  },
+  "extensionDescription": {
+    "message": "Clic droit pour envoyer des images et des vidéos vers Blombooru",
+    "description": "Description de l'extension"
+  },
+  "browserActionTitle": {
+    "message": "Paramètres de l'outil d'envoi Blombooru",
+    "description": "Infobulle du bouton de la barre d'outils"
+  },
+  "headingServerDetails": {
+    "message": "Détails du serveur"
+  },
+  "labelServerAddress": {
+    "message": "Adresse du serveur Blombooru :"
+  },
+  "placeholderServerAddress": {
+    "message": "Saisissez l'adresse Blombooru ici"
+  },
+  "buttonGrantAccess": {
+    "message": "Autoriser l'accès"
+  },
+  "labelFriendlyName": {
+    "message": "Nom convivial (facultatif) :"
+  },
+  "placeholderFriendlyNameHome": {
+    "message": "p. ex. Maison"
+  },
+  "placeholderFriendlyNameWork": {
+    "message": "p. ex. Travail"
+  },
+  "labelDefaultRating": {
+    "message": "Classification par défaut :"
+  },
+  "ratingSafe": {
+    "message": "Sûr"
+  },
+  "ratingQuestionable": {
+    "message": "Suggestif"
+  },
+  "ratingExplicit": {
+    "message": "Explicite"
+  },
+  "checkboxAltServer": {
+    "message": "Ajouter un serveur alternatif"
+  },
+  "headingAltServer": {
+    "message": "Serveur alternatif"
+  },
+  "buttonSaveSettings": {
+    "message": "Enregistrer les paramètres"
+  },
+  "buttonSaved": {
+    "message": "Enregistré !"
+  },
+  "errorInvalidUrl": {
+    "message": "URL non valide."
+  },
+  "statusPermissionRequired": {
+    "message": "Autorisation du navigateur requise pour tester cette adresse."
+  },
+  "statusTestingConnection": {
+    "message": "Test de la connexion…"
+  },
+  "statusConnectionSuccess": {
+    "message": "Connexion réussie !"
+  },
+  "statusSettingsSaved": {
+    "message": "Paramètres enregistrés."
+  },
+  "errorSaveFailed": {
+    "message": "Échec de l'enregistrement des paramètres."
+  },
+  "errorCouldNotReachServer": {
+    "message": "Impossible de joindre le serveur. Vérifiez l'adresse et réessayez."
+  },
+  "errorAuthRequiredInstance": {
+    "message": "Cette instance Blombooru nécessite une authentification. Utilisez pour l'instant une instance sans authentification API."
+  },
+  "errorUnexpectedStatus": {
+    "message": "Le serveur a renvoyé $1$. Il ne s'agit peut-être pas d'une instance Blombooru.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "404"
+      }
+    }
+  },
+  "errorInvalidJson": {
+    "message": "La réponse du serveur n'était pas du JSON valide."
+  },
+  "errorNotBlombooruApi": {
+    "message": "La réponse ne ressemble pas à l'API Blombooru."
+  },
+  "contextMenuBase": {
+    "message": "Enregistrer sur Blombooru"
+  },
+  "contextMenuWithName": {
+    "message": "Enregistrer sur Blombooru ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Maison"
+      }
+    }
+  },
+  "contextMenuAlt": {
+    "message": "Enregistrer sur Blombooru (alternatif)"
+  },
+  "errorUploadAuthRequired": {
+    "message": "Échec de l'envoi : cette instance Blombooru nécessite une authentification. Utilisez pour l'instant une instance sans authentification."
+  },
+  "errorUploadMethodNotAllowed": {
+    "message": "Échec de l'envoi : méthode non autorisée. Vérifiez l'URL de base Blombooru."
+  },
+  "errorUploadHttp": {
+    "message": "Échec de l'envoi : $1$ $2$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "500"
+      },
+      "2": {
+        "content": "$2",
+        "example": "Internal Server Error"
+      }
+    }
+  },
+  "errorAltServerNotConfigured": {
+    "message": "Le serveur alternatif n'est pas configuré."
+  },
+  "errorDownloadFailed": {
+    "message": "Échec du téléchargement : $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "404"
+      }
+    }
+  },
+  "notificationUploadFailedTitle": {
+    "message": "Échec de l'envoi"
+  }
+}
