@@ -1,6 +1,6 @@
 # Save to Blombooru
 
-**Right-click send any web image/video to Blombooru**
+**Right-click to send any web image/video to Blombooru**
 
 A Firefox (or Waterfox/Pale Moon/LibreWolf/Floorp) extension to push media to a [Blombooru](https://github.com/mrblomblo/blombooru) instance while browsing.
 
@@ -25,11 +25,10 @@ The toolbar button shows when an upload is in progress, succeeded, or failed, an
 
 | | |
 |---|---|
-| **Upload from the page** | Context menu on images and videos (`Save to Blombooru`). |
-| **Default rating** | Choose safe / questionable / explicit per server in settings — applied on every upload. |
-| **Two servers (optional)** | Primary plus an alternative servers can be defined separately, if you run more than once instance. Friendly names show up in the menu so you know where things are going. |
+| **Direct upload as you browse** | Right click on images and videos -> (`Save to Blombooru`). |
+| **Multiple server support** | Multiple Blombooru servers can be defined separately. Friendly names show up in the menu so you know where things are going. |
 | **Connection check** | Settings test your server URL before you can save. |
-| **Localized UI** | English, German, French, Spanish, and Brazilian Portuguese (browser language). |
+| **API key support** | Optional API key, if the server requires one. |
 
 ---
 
@@ -49,6 +48,16 @@ This repo is not yet published on addons.mozilla.org. For now, load it unpacked:
 4. Choose `manifest.json` from the project folder.
 
 The add-on will only stay loaded for the current Firefox session (typical for temporary add-ons).
+
+### Building a release package (AMO)
+
+From the project root:
+
+```bash
+node scripts/build.mjs
+```
+
+This validates locale files, stages only extension runtime files, and writes `build/save-to-blombooru-<version>.zip` (ready to upload to [addons.mozilla.org](https://addons.mozilla.org/)). The `build/` directory is git-ignored.
 
 ### 2. Configure your Blombooru server(s)
 
@@ -76,7 +85,8 @@ If there's a problem pushing the content to Blombooru, you'll get a proper notif
 save-to-blombooru/
 ├── manifest.json       # Extension manifest (Firefox MV2)
 ├── background.js       # Context menu, uploads, notifications
-├── auth.js             # Blombooru API connection-test logic
+├── servers.js          # Server list storage helpers
+├── auth.js             # Blombooru API URLs and connection test
 ├── media-context.js    # Grabs any alt-text/captions for the selected image/video
 ├── options.html/js     # Settings UI
 ├── _locales/           # Language translations (currently added: en, de, fr, es, pt_BR)

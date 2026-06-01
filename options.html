@@ -1,217 +1,221 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="color-scheme" content="light dark">
-  <style>
-    :root {
-      color-scheme: light dark;
-    }
-
-    html,
-    body {
-      background: Canvas;
-      color: CanvasText;
-    }
-
-    .field {
-      margin-bottom: 1em;
-    }
-
-    .field label {
-      display: block;
-      margin-bottom: 0.35em;
-    }
-
-    .field input[type="url"],
-    .field input[type="text"] {
-      width: 100%;
-      box-sizing: border-box;
-      background: Field;
-      color: FieldText;
-      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-      border-radius: 4px;
-      padding: 6px 8px;
-    }
-
-    .field input::placeholder {
-      color: GrayText;
-    }
-
-    .checkbox-row label {
-      display: flex;
-      align-items: center;
-      gap: 0.5em;
-      margin-bottom: 0;
-    }
-
-    .checkbox-row input[type="checkbox"] {
-      margin: 0;
-    }
-
-    .server-section {
-      margin-top: 1.5em;
-      padding-top: 1em;
-      border-top: 1px solid color-mix(in srgb, CanvasText 15%, transparent);
-    }
-
-    .server-section h3 {
-      margin: 0 0 1em;
-      font: caption;
-      font-size: 1.1em;
-      font-weight: 600;
-    }
-
-    .field-status {
-      margin: 0.35em 0 0;
-      min-height: 1.2em;
-      font-size: 0.95em;
-    }
-
-    .field-status.success {
-      color: light-dark(#058b00, #72e06a);
-    }
-
-    .field-status.error {
-      color: light-dark(#d70022, #ff8484);
-    }
-
-    .field-status.info {
-      color: GrayText;
-    }
-
-    .field-status.warning {
-      color: light-dark(#9a6700, #ffb86c);
-    }
-
-    .grant-access {
-      margin-top: 0.5em;
-    }
-
-    .rating-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75em;
-      margin-bottom: 1em;
-    }
-
-    .rating-row label {
-      margin: 0;
-      white-space: nowrap;
-    }
-
-    .rating-select {
-      background: Field;
-      color: FieldText;
-      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
-      border-radius: 4px;
-      padding: 6px 8px;
-    }
-
-    .actions {
-      margin-top: 1.5em;
-    }
-
-    #save:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-
-    #save.saved {
-      font-weight: 600;
-    }
-
-    #status {
-      margin-top: 0.75em;
-      min-height: 1.2em;
-    }
-
-    #status.success {
-      color: light-dark(#058b00, #72e06a);
-    }
-
-    #status.error {
-      color: light-dark(#d70022, #ff8484);
-    }
-
-    #status.info {
-      color: GrayText;
-    }
-  </style>
-</head>
-<body>
-  <section id="primaryServer">
-    <h3 data-i18n="headingServerDetails"></h3>
-
-    <div class="field">
-      <label for="booruUrl" data-i18n="labelServerAddress"></label>
-      <input id="booruUrl" type="url" data-i18n-placeholder="placeholderServerAddress">
-      <p id="urlStatus" class="field-status" aria-live="polite"></p>
-      <button type="button" id="grantAccess" class="grant-access" data-i18n="buttonGrantAccess" hidden></button>
-    </div>
-
-    <!-- API key UI disabled until Blombooru upstream fix
-    <div class="field" id="apiKeySection" hidden>
-      <label for="apiKey">API Key:</label>
-      <input id="apiKey" type="text">
-    </div>
-    -->
-
-    <div class="field">
-      <label for="serverName" data-i18n="labelFriendlyName"></label>
-      <input id="serverName" type="text" data-i18n-placeholder="placeholderFriendlyNameHome">
-    </div>
-
-    <div class="rating-row">
-      <label for="rating" data-i18n="labelDefaultRating"></label>
-      <select id="rating" class="rating-select">
-        <option value="safe" data-i18n="ratingSafe"></option>
-        <option value="questionable" data-i18n="ratingQuestionable"></option>
-        <option value="explicit" data-i18n="ratingExplicit"></option>
-      </select>
-    </div>
-  </section>
-
-  <div class="field checkbox-row">
-    <label for="altBooruEnabled">
-      <input type="checkbox" id="altBooruEnabled">
-      <span data-i18n="checkboxAltServer"></span>
-    </label>
-  </div>
-
-  <section id="altServerSection" class="server-section" hidden>
-    <h3 data-i18n="headingAltServer"></h3>
-
-    <div class="field">
-      <label for="altBooruUrl" data-i18n="labelServerAddress"></label>
-      <input id="altBooruUrl" type="url" data-i18n-placeholder="placeholderServerAddress">
-      <p id="altUrlStatus" class="field-status" aria-live="polite"></p>
-      <button type="button" id="altGrantAccess" class="grant-access" data-i18n="buttonGrantAccess" hidden></button>
-    </div>
-
-    <div class="field">
-      <label for="altServerName" data-i18n="labelFriendlyName"></label>
-      <input id="altServerName" type="text" data-i18n-placeholder="placeholderFriendlyNameWork">
-    </div>
-
-    <!-- API key UI disabled — see primary server comment -->
-
-    <div class="rating-row">
-      <label for="altRating" data-i18n="labelDefaultRating"></label>
-      <select id="altRating" class="rating-select">
-        <option value="safe" data-i18n="ratingSafe"></option>
-        <option value="questionable" data-i18n="ratingQuestionable"></option>
-        <option value="explicit" data-i18n="ratingExplicit"></option>
-      </select>
-    </div>
-  </section>
-
-  <div class="actions">
-    <button type="button" id="save" data-i18n="buttonSaveSettings"></button>
-    <p id="status" aria-live="polite"></p>
-  </div>
-
-  <script src="auth.js"></script>
-  <script src="options.js"></script>
-</body>
-</html>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light dark">
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    html,
+    body {
+      background: Canvas;
+      color: CanvasText;
+    }
+
+    .field {
+      margin-bottom: 1em;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 0.35em;
+    }
+
+    .field input[type="url"],
+    .field input[type="text"],
+    .field input[type="password"] {
+      width: 100%;
+      box-sizing: border-box;
+      background: Field;
+      color: FieldText;
+      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+      border-radius: 4px;
+      padding: 6px 8px;
+    }
+
+    .field input::placeholder {
+      color: GrayText;
+    }
+
+    .server-card {
+      margin-bottom: 1em;
+      padding: 1em;
+      border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+      border-radius: 6px;
+    }
+
+    .rating-control {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+    }
+
+    .rating-control .rating-select {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .server-remove {
+      flex-shrink: 0;
+      width: 2em;
+      height: 2em;
+      padding: 0;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: light-dark(#d70022, #ff8484);
+      font-size: 1.25em;
+      line-height: 1;
+      cursor: pointer;
+    }
+
+    .server-remove:hover {
+      background: color-mix(in srgb, #d70022 12%, transparent);
+    }
+
+    .field-status {
+      margin: 0.35em 0 0;
+      min-height: 1.2em;
+      font-size: 0.95em;
+    }
+
+    .field-status.success {
+      color: light-dark(#058b00, #72e06a);
+    }
+
+    .field-status.error {
+      color: light-dark(#d70022, #ff8484);
+    }
+
+    .field-status.info {
+      color: GrayText;
+    }
+
+    .server-row {
+      display: flex;
+      gap: 0.75em;
+      margin-bottom: 0.75em;
+    }
+
+    .server-row .field {
+      flex: 1;
+      min-width: 0;
+      margin-bottom: 0;
+    }
+
+    .server-status-block {
+      margin-top: 0.25em;
+    }
+
+    .server-status-block .field-status {
+      margin-bottom: 0.35em;
+    }
+
+    .grant-access {
+      margin-top: 0;
+    }
+
+    .rating-select {
+      box-sizing: border-box;
+      background: Field;
+      color: FieldText;
+      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+      border-radius: 4px;
+      padding: 6px 8px;
+    }
+
+    .settings-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1em;
+      margin-top: 1em;
+    }
+
+    .save-button-wrap.save-blocked {
+      cursor: not-allowed;
+    }
+
+    .save-button-wrap.save-blocked #save {
+      pointer-events: none;
+    }
+
+    #save:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    #save.saved {
+      font-weight: 600;
+    }
+
+    #status {
+      margin-top: 0.75em;
+      min-height: 1.2em;
+    }
+
+    #status.success {
+      color: light-dark(#058b00, #72e06a);
+    }
+
+    #status.error {
+      color: light-dark(#d70022, #ff8484);
+    }
+  </style>
+</head>
+<body>
+  <div id="serversList"></div>
+
+  <div class="settings-toolbar">
+    <button type="button" id="addServer" data-i18n="buttonAddServer"></button>
+    <span id="saveButtonWrap" class="save-button-wrap">
+      <button type="button" id="save" data-i18n="buttonSaveSettings"></button>
+    </span>
+  </div>
+  <p id="status" aria-live="polite"></p>
+
+  <template id="serverCardTemplate">
+    <article class="server-card">
+      <div class="server-row">
+        <div class="field">
+          <label data-i18n="labelServerAddress"></label>
+          <input type="url" class="booru-url" data-i18n-placeholder="placeholderServerAddress">
+        </div>
+        <div class="field">
+          <label data-i18n="labelFriendlyName"></label>
+          <input type="text" class="friendly-name" data-i18n-placeholder="placeholderFriendlyName">
+        </div>
+      </div>
+
+      <div class="server-row">
+        <div class="field">
+          <label data-i18n="labelApiKey"></label>
+          <input type="password" class="api-key" autocomplete="off">
+        </div>
+        <div class="field">
+          <label data-i18n="labelDefaultRating"></label>
+          <div class="rating-control">
+            <select class="rating rating-select">
+              <option value="safe" data-i18n="ratingSafe"></option>
+              <option value="questionable" data-i18n="ratingQuestionable"></option>
+              <option value="explicit" data-i18n="ratingExplicit"></option>
+            </select>
+            <button type="button" class="server-remove" data-i18n-title="buttonRemoveServer">×</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="server-status-block">
+        <p class="url-status field-status" aria-live="polite"></p>
+        <button type="button" class="grant-access" data-i18n="buttonGrantAccess" hidden></button>
+      </div>
+    </article>
+  </template>
+
+  <script src="servers.js"></script>
+  <script src="auth.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

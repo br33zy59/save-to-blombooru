@@ -1,5 +1,38 @@
-// No-auth Blombooru instances only (REQUIRE_AUTH off).
-// API key support disabled until Blombooru fixes upstream — see commented stubs below.
+function normalizeApiKey(apiKey) {
+  const key = (apiKey || "").trim();
+  if (/^bearer\s+/i.test(key)) {
+    return key.replace(/^bearer\s+/i, "");
+  }
+  return key;
+}
+
+function appendApiKeyQuery(url, apiKey) {
+  const key = normalizeApiKey(apiKey);
+  if (!key) {
+    return url;
+  }
+
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}api_key=${encodeURIComponent(key)}`;
+}
+
+function getAuthHeaders(apiKey) {
+  const key = normalizeApiKey(apiKey);
+  if (!key) {
+    return {};
+  }
+
+  return { Authorization: `Bearer ${key}` };
+}
+
+function authorizedFetch(url, apiKey, options = {}) {
+  const headers = { ...getAuthHeaders(apiKey), ...(options.headers || {}) };
+
+  return fetch(appendApiKeyQuery(url, apiKey), {
+    ...options,
+    headers
+  });
+}
 
 function getMediaListUrl(booruUrl) {
   const base = booruUrl.replace(/\/$/, "");
@@ -17,16 +50,16 @@ function getMediaItemUrl(booruUrl, mediaId) {
   return `${base}/api/media/${mediaId}`;
 }
 
-async function testBlombooruConnection(booruUrl) {
+async function testBlombooruConnection(booruUrl, apiKey) {
   let response;
   try {
-    response = await fetch(getMediaListUrl(booruUrl));
+    response = await authorizedFetch(getMediaListUrl(booruUrl), apiKey);
   } catch (err) {
     throw new Error(browser.i18n.getMessage("errorCouldNotReachServer"));
   }
 
   if (response.status === 401 || response.status === 403) {
-    throw new Error(browser.i18n.getMessage("errorAuthRequiredInstance"));
+    throw new Error(browser.i18n.getMessage("errorAuthFailed"));
   }
 
   if (!response.ok) {
@@ -46,29 +79,3 @@ async function testBlombooruConnection(booruUrl) {
     throw new Error(browser.i18n.getMessage("errorNotBlombooruApi"));
   }
 }
-
-// --- API key support (disabled until Blombooru upstream fix) ---
-// function normalizeApiKey(apiKey) {
-//   const key = (apiKey || "").trim();
-//   if (/^bearer\s+/i.test(key)) {
-//     return key.replace(/^bearer\s+/i, "");
-//   }
-//   return key;
-// }
-//
-// function appendApiKeyQuery(url, apiKey) {
-//   const key = normalizeApiKey(apiKey);
-//   if (!key) return url;
-//   const separator = url.includes("?") ? "&" : "?";
-//   return `${url}${separator}api_key=${encodeURIComponent(key)}`;
-// }
-//
-// function getMediaListUrl(booruUrl, apiKey) {
-//   const base = booruUrl.replace(/\/$/, "");
-//   return appendApiKeyQuery(`${base}/api/media?limit=1`, apiKey);
-// }
-//
-// function getMediaUploadUrl(booruUrl, apiKey) {
-//   const base = booruUrl.replace(/\/$/, "");
-//   return appendApiKeyQuery(`${base}/api/media/`, apiKey);
-// }

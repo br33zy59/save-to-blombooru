@@ -1,8 +1,5 @@
 console.log("=== Blombooru Uploader (MV3) LOADED ===");
 
-const PRIMARY_MENU_ID = "save-to-blombooru";
-const ALT_MENU_ID = "save-to-blombooru-alt";
-
 const BADGE_CLEAR_MS = 2500;
 const BADGE_SUCCESS = "✓";
 const BADGE_FAILURE = "X";
@@ -147,16 +144,38 @@ async function captureMediaCaption(tabId, srcUrl) {
   }
 }
 
+function getConfiguredServers(servers) {
+  return (servers || []).filter((entry) => entry && entry.id && entry.booruUrl);
+}
+
+function getMenuTitle(server, configuredServers) {
+  const name = (server.serverName || "").trim();
+
+  if (name) {
+    return browser.i18n.getMessage("contextMenuWithName", name);
+  }
+
+  if (configuredServers.length <= 1) {
+    return browser.i18n.getMessage("contextMenuBase");
+  }
+
+  try {
+    const host = new URL(server.booruUrl).host;
+    return browser.i18n.getMessage("contextMenuWithHost", host);
+  } catch (e) {
+    return browser.i18n.getMessage("contextMenuBase");
+  }
+}
+
 browser.contextMenus.onClicked.addListener(async (info) => {
-  if (info.menuItemId !== PRIMARY_MENU_ID && info.menuItemId !== ALT_MENU_ID) {
+  const servers = await getServersFromStorage();
+  const server = findServerById(servers, info.menuItemId);
+
+  if (!server || !server.booruUrl) {
     return;
   }
 
-  const server = info.menuItemId === ALT_MENU_ID ? "alt" : "primary";
-  const settings = await browser.storage.local.get(["booruUrl", "altBooruUrl"]);
-  const booruUrl = server === "alt" ? settings.altBooruUrl : settings.booruUrl;
-
-  if (isSameServerOrigin(info.pageUrl, booruUrl)) {
+  if (isSameServerOrigin(info.pageUrl, server.booruUrl)) {
     return;
   }
 
@@ -169,7 +188,7 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     filename,
     source: info.srcUrl,
     description,
-    server
+    serverId: server.id
   });
 });
 
@@ -183,35 +202,19 @@ async function setContextMenuVisible(menuId, visible) {
   try {
     await browser.contextMenus.update(menuId, { visible });
   } catch (e) {
-    // Item may not exist (e.g. server not configured).
+    // Item may not exist.
   }
 }
 
-// contextMenus.update(visible) applies on the *next* menu open, not the current one.
-// Sync when the active tab changes so visibility is correct before the user right-clicks.
 async function syncContextMenuVisibilityForPageUrl(pageUrl) {
   if (!pageUrl) {
     return;
   }
 
-  const settings = await browser.storage.local.get([
-    "booruUrl",
-    "altBooruEnabled",
-    "altBooruUrl"
-  ]);
+  const servers = getConfiguredServers(await getServersFromStorage());
 
-  if (settings.booruUrl) {
-    await setContextMenuVisible(
-      PRIMARY_MENU_ID,
-      !isSameServerOrigin(pageUrl, settings.booruUrl)
-    );
-  }
-
-  if (settings.altBooruEnabled && settings.altBooruUrl) {
-    await setContextMenuVisible(
-      ALT_MENU_ID,
-      !isSameServerOrigin(pageUrl, settings.altBooruUrl)
-    );
+  for (const server of servers) {
+    await setContextMenuVisible(server.id, !isSameServerOrigin(pageUrl, server.booruUrl));
   }
 }
 
@@ -263,69 +266,20 @@ browser.windows.onFocusChanged.addListener((windowId) => {
   });
 });
 
-function getMenuTitle(friendlyName, hasAltServer, isAlt) {
-  const name = (friendlyName || "").trim();
-
-  if (name) {
-    return browser.i18n.getMessage("contextMenuWithName", name);
-  }
-
-  if (!hasAltServer) {
-    return browser.i18n.getMessage("contextMenuBase");
-  }
-
-  if (isAlt) {
-    return browser.i18n.getMessage("contextMenuAlt");
-  }
-
-  return browser.i18n.getMessage("contextMenuBase");
-}
-
 async function updateContextMenus() {
-  const settings = await browser.storage.local.get([
-    "serverName",
-    "booruUrl",
-    "altBooruEnabled",
-    "altBooruUrl",
-    "altServerName"
-  ]);
+  const servers = getConfiguredServers(await getServersFromStorage());
 
-  const hasPrimary = Boolean(settings.booruUrl);
-  const hasAlt = Boolean(settings.altBooruEnabled && settings.altBooruUrl);
+  await browser.contextMenus.removeAll();
 
-  browser.contextMenus.remove(PRIMARY_MENU_ID, () => {
-    if (browser.runtime.lastError) {
-      // Menu item did not exist yet.
-    }
-
-    if (hasPrimary) {
-      const primaryTitle = getMenuTitle(settings.serverName, hasAlt, false);
-
-      browser.contextMenus.create({
-        id: PRIMARY_MENU_ID,
-        title: primaryTitle,
-        contexts: ["image", "video"]
-      });
-    }
-
-    browser.contextMenus.remove(ALT_MENU_ID, () => {
-      if (browser.runtime.lastError) {
-        // Menu item did not exist yet.
-      }
-
-      if (hasAlt) {
-        const altTitle = getMenuTitle(settings.altServerName, true, true);
-
-        browser.contextMenus.create({
-          id: ALT_MENU_ID,
-          title: altTitle,
-          contexts: ["image", "video"]
-        });
-      }
-
-      syncContextMenuVisibilityForActiveTab();
+  for (const server of servers) {
+    browser.contextMenus.create({
+      id: server.id,
+      title: getMenuTitle(server, servers),
+      contexts: ["image", "video"]
     });
-  });
+  }
+
+  await syncContextMenuVisibilityForActiveTab();
 }
 
 function uploadErrorMessage(status, bodyText) {
@@ -347,25 +301,17 @@ async function performUpload(data) {
   startUploadingBadge();
 
   try {
-    const settings = await browser.storage.local.get([
-      "serverName",
-      "booruUrl",
-      "rating",
-      "altBooruEnabled",
-      "altServerName",
-      "altBooruUrl",
-      "altRating"
-    ]);
+    const servers = await getServersFromStorage();
+    const server = findServerById(servers, data.serverId);
 
-    const useAlt = data.server === "alt";
-    const hasAlt = Boolean(settings.altBooruEnabled && settings.altBooruUrl);
-
-    if (useAlt && !hasAlt) {
-      throw new Error(browser.i18n.getMessage("errorAltServerNotConfigured"));
+    if (!server || !server.booruUrl) {
+      throw new Error(browser.i18n.getMessage("errorServerNotConfigured"));
     }
 
-    const booruUrl = (useAlt ? settings.altBooruUrl : settings.booruUrl).replace(/\/$/, "");
-    const rating = useAlt ? settings.altRating : settings.rating;
+    const booruUrl = server.booruUrl.replace(/\/$/, "");
+    const apiKey = server.apiKey || "";
+    const rating = server.rating;
+
     const uploadUrl = getMediaUploadUrl(booruUrl);
 
     const mediaResponse = await fetch(data.srcUrl);
@@ -386,7 +332,7 @@ async function performUpload(data) {
       form.append("source", data.source);
     }
 
-    const uploadResponse = await fetch(uploadUrl, {
+    const uploadResponse = await authorizedFetch(uploadUrl, apiKey, {
       method: "POST",
       body: form
     });
@@ -407,11 +353,15 @@ async function performUpload(data) {
       if (uploaded?.id == null) {
         console.warn("Upload succeeded but response had no media id; description not saved.");
       } else {
-        const patchResponse = await fetch(getMediaItemUrl(booruUrl, uploaded.id), {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description: data.description })
-        });
+        const patchResponse = await authorizedFetch(
+          getMediaItemUrl(booruUrl, uploaded.id),
+          apiKey,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ description: data.description })
+          }
+        );
 
         if (!patchResponse.ok) {
           const bodyText = await patchResponse.text();

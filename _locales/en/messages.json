@@ -23,17 +23,17 @@
   "buttonGrantAccess": {
     "message": "Grant access"
   },
+  "labelApiKey": {
+    "message": "API Key:"
+  },
   "labelFriendlyName": {
-    "message": "Friendly name (optional):"
+    "message": "Name:"
   },
-  "placeholderFriendlyNameHome": {
-    "message": "e.g. Home"
-  },
-  "placeholderFriendlyNameWork": {
-    "message": "e.g. Work"
+  "placeholderFriendlyName": {
+    "message": "e.g. My Blombooru"
   },
   "labelDefaultRating": {
-    "message": "Default rating:"
+    "message": "Content rating:"
   },
   "ratingSafe": {
     "message": "Safe"
@@ -44,11 +44,17 @@
   "ratingExplicit": {
     "message": "Explicit"
   },
-  "checkboxAltServer": {
-    "message": "Add alternative server"
+  "buttonAddServer": {
+    "message": "Add another server"
   },
-  "headingAltServer": {
-    "message": "Alternative server"
+  "buttonRemoveServer": {
+    "message": "Delete server entry"
+  },
+  "tooltipSaveInvalid": {
+    "message": "Invalid server entry. Fix or remove before saving."
+  },
+  "confirmRemoveServer": {
+    "message": "This will remove the server. Are you sure?"
   },
   "buttonSaveSettings": {
     "message": "Save Settings"
@@ -77,8 +83,8 @@
   "errorCouldNotReachServer": {
     "message": "Could not reach the server. Check the address and try again."
   },
-  "errorAuthRequiredInstance": {
-    "message": "This Blombooru instance requires authentication. Use an instance without API auth for now."
+  "errorAuthFailed": {
+    "message": "Authentication failed. Check your API key."
   },
   "errorUnexpectedStatus": {
     "message": "Server returned $1$. This may not be a Blombooru instance.",
@@ -99,7 +105,7 @@
     "message": "Save to Blombooru"
   },
   "contextMenuWithName": {
-    "message": "Save to Blombooru ($1$)",
+    "message": "Save to $1$",
     "placeholders": {
       "1": {
         "content": "$1",
@@ -107,11 +113,17 @@
       }
     }
   },
-  "contextMenuAlt": {
-    "message": "Save to Blombooru (alternative)"
+  "contextMenuWithHost": {
+    "message": "Save to Blombooru ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "booru.example.com"
+      }
+    }
   },
   "errorUploadAuthRequired": {
-    "message": "Upload failed: this Blombooru instance requires authentication. Use a no-auth instance for now."
+    "message": "Upload failed: authentication required. Check the API key in extension settings."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload failed: method not allowed. Check your Blombooru base URL."
@@ -129,8 +141,8 @@
       }
     }
   },
-  "errorAltServerNotConfigured": {
-    "message": "Alternative server is not configured."
+  "errorServerNotConfigured": {
+    "message": "That server is not configured."
   },
   "errorDownloadFailed": {
     "message": "Download failed: $1$",

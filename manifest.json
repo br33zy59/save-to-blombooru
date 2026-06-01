@@ -19,7 +19,7 @@
   ],
 
   "background": {
-    "scripts": ["auth.js", "media-context.js", "background.js"],
+    "scripts": ["servers.js", "auth.js", "media-context.js", "background.js"],
     "persistent": true
   },
 

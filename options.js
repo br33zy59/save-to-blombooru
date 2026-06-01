@@ -1,15 +1,23 @@
-function localizePage() {
-  document.querySelectorAll("[data-i18n]").forEach((el) => {
+function localizePage(root = document) {
+  root.querySelectorAll("[data-i18n]").forEach((el) => {
     const msg = browser.i18n.getMessage(el.getAttribute("data-i18n"));
     if (msg) {
       el.textContent = msg;
     }
   });
 
-  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+  root.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     const msg = browser.i18n.getMessage(el.getAttribute("data-i18n-placeholder"));
     if (msg) {
       el.placeholder = msg;
+    }
+  });
+
+  root.querySelectorAll("[data-i18n-title]").forEach((el) => {
+    const msg = browser.i18n.getMessage(el.getAttribute("data-i18n-title"));
+    if (msg) {
+      el.title = msg;
+      el.setAttribute("aria-label", msg);
     }
   });
 }
@@ -17,10 +25,15 @@ function localizePage() {
 localizePage();
 
 const saveButton = document.getElementById("save");
+const saveButtonWrap = document.getElementById("saveButtonWrap");
+const saveInvalidTooltip = browser.i18n.getMessage("tooltipSaveInvalid");
 const saveStatusEl = document.getElementById("status");
-const altBooruEnabledCheckbox = document.getElementById("altBooruEnabled");
-const altServerSection = document.getElementById("altServerSection");
+const serversListEl = document.getElementById("serversList");
+const addServerButton = document.getElementById("addServer");
+const serverCardTemplate = document.getElementById("serverCardTemplate");
 const defaultSaveLabel = browser.i18n.getMessage("buttonSaveSettings");
+
+const serverManagers = new Map();
 
 function showSaveStatus(message, type) {
   saveStatusEl.textContent = message;
@@ -29,6 +42,15 @@ function showSaveStatus(message, type) {
 
 function setSaveEnabled(enabled) {
   saveButton.disabled = !enabled;
+
+  const showInvalidTooltip = !enabled && serverManagers.size > 0;
+  saveButtonWrap.classList.toggle("save-blocked", showInvalidTooltip);
+
+  if (showInvalidTooltip) {
+    saveButtonWrap.title = saveInvalidTooltip;
+  } else {
+    saveButtonWrap.removeAttribute("title");
+  }
 }
 
 function getOriginPattern(booruUrl) {
@@ -53,7 +75,7 @@ async function ensureHostPermission(originPattern, requestIfNeeded) {
   });
 }
 
-function createServerManager(elements, onStateChange) {
+function createServerManager(serverId, elements, onStateChange) {
   let connectionValid = false;
   let validationRequestId = 0;
 
@@ -94,6 +116,7 @@ function createServerManager(elements, onStateChange) {
         showUrlStatus(browser.i18n.getMessage("errorInvalidUrl"), "error");
         connectionValid = false;
         setGrantAccessVisible(false);
+        onStateChange();
         return;
       }
 
@@ -108,6 +131,7 @@ function createServerManager(elements, onStateChange) {
       } catch (e) {
         if (requestId !== validationRequestId) return;
         showUrlStatus(e.message, "error");
+        onStateChange();
         return;
       }
 
@@ -116,16 +140,20 @@ function createServerManager(elements, onStateChange) {
       if (!hasPermission) {
         showUrlStatus(browser.i18n.getMessage("statusPermissionRequired"), "info");
         setGrantAccessVisible(true);
+        onStateChange();
         return;
       }
 
       showUrlStatus(browser.i18n.getMessage("statusTestingConnection"), "info");
 
+      const apiKey = elements.apiKeyInput.value;
+
       try {
-        await testBlombooruConnection(booruUrl);
+        await testBlombooruConnection(booruUrl, apiKey);
       } catch (e) {
         if (requestId !== validationRequestId) return;
         showUrlStatus(e.message, "error");
+        onStateChange();
         return;
       }
 
@@ -147,24 +175,42 @@ function createServerManager(elements, onStateChange) {
     onStateChange();
   }
 
+  function onApiKeyInput() {
+    connectionValid = false;
+    onStateChange();
+  }
+
   function bindEvents() {
     elements.grantAccessButton.addEventListener("click", () => {
       validateConnection(true);
     });
 
     elements.booruUrlInput.addEventListener("input", onUrlInput);
-
     elements.booruUrlInput.addEventListener("blur", () => {
+      validateConnection(false);
+    });
+
+    elements.apiKeyInput.addEventListener("input", onApiKeyInput);
+    elements.apiKeyInput.addEventListener("blur", () => {
       validateConnection(false);
     });
   }
 
   function getSaveData() {
     return {
+      id: serverId,
       serverName: elements.friendlyNameInput.value.trim(),
       booruUrl: elements.booruUrlInput.value.trim(),
+      apiKey: elements.apiKeyInput.value.trim(),
       rating: elements.ratingInput.value
     };
+  }
+
+  function loadValues(entry) {
+    elements.friendlyNameInput.value = entry.serverName || "";
+    elements.booruUrlInput.value = entry.booruUrl || "";
+    elements.apiKeyInput.value = entry.apiKey || "";
+    elements.ratingInput.value = entry.rating || "safe";
   }
 
   return {
@@ -172,76 +218,83 @@ function createServerManager(elements, onStateChange) {
     validateConnection,
     canSave,
     getSaveData,
-    loadValues(booruUrl, rating, serverName) {
-      elements.friendlyNameInput.value = serverName || "";
-      if (booruUrl) elements.booruUrlInput.value = booruUrl;
-      elements.ratingInput.value = rating || "safe";
-    }
+    loadValues
   };
 }
 
-let primaryServer;
-let altServer;
-
 function refreshSaveButton() {
-  let canSave = primaryServer.canSave();
-
-  if (altBooruEnabledCheckbox.checked) {
-    canSave = canSave && altServer.canSave();
+  if (serverManagers.size === 0) {
+    setSaveEnabled(true);
+    return;
   }
 
-  setSaveEnabled(canSave);
+  setSaveEnabled([...serverManagers.values()].every((manager) => manager.canSave()));
 }
 
-primaryServer = createServerManager({
-  friendlyNameInput: document.getElementById("serverName"),
-  booruUrlInput: document.getElementById("booruUrl"),
-  grantAccessButton: document.getElementById("grantAccess"),
-  urlStatusEl: document.getElementById("urlStatus"),
-  ratingInput: document.getElementById("rating")
-}, refreshSaveButton);
-
-altServer = createServerManager({
-  friendlyNameInput: document.getElementById("altServerName"),
-  booruUrlInput: document.getElementById("altBooruUrl"),
-  grantAccessButton: document.getElementById("altGrantAccess"),
-  urlStatusEl: document.getElementById("altUrlStatus"),
-  ratingInput: document.getElementById("altRating")
-}, refreshSaveButton);
-
-function setAltServerVisible(visible) {
-  altServerSection.hidden = !visible;
-}
-
-primaryServer.bindEvents();
-altServer.bindEvents();
-
-altBooruEnabledCheckbox.addEventListener("change", () => {
-  setAltServerVisible(altBooruEnabledCheckbox.checked);
+function removeServerCard(serverId) {
+  const card = serversListEl.querySelector(`[data-server-id="${serverId}"]`);
+  if (card) {
+    card.remove();
+  }
+  serverManagers.delete(serverId);
   refreshSaveButton();
+}
+
+function addServerCard(entry) {
+  const serverId = entry.id;
+  const fragment = serverCardTemplate.content.cloneNode(true);
+  const card = fragment.querySelector(".server-card");
+  card.dataset.serverId = serverId;
+
+  const elements = {
+    friendlyNameInput: card.querySelector(".friendly-name"),
+    booruUrlInput: card.querySelector(".booru-url"),
+    grantAccessButton: card.querySelector(".grant-access"),
+    urlStatusEl: card.querySelector(".url-status"),
+    apiKeyInput: card.querySelector(".api-key"),
+    ratingInput: card.querySelector(".rating")
+  };
+
+  localizePage(card);
+
+  const removeButton = card.querySelector(".server-remove");
+  removeButton.addEventListener("click", () => {
+    const confirmed = window.confirm(browser.i18n.getMessage("confirmRemoveServer"));
+    if (confirmed) {
+      removeServerCard(serverId);
+    }
+  });
+
+  const manager = createServerManager(serverId, elements, refreshSaveButton);
+  manager.loadValues(entry);
+  manager.bindEvents();
+  serverManagers.set(serverId, manager);
+
+  serversListEl.appendChild(card);
+
+  return manager;
+}
+
+addServerButton.addEventListener("click", () => {
+  addServerCard(createServerEntry());
+  refreshSaveButton();
+  const cards = serversListEl.querySelectorAll(".server-card");
+  const lastCard = cards[cards.length - 1];
+  lastCard?.querySelector(".booru-url")?.focus();
 });
 
 saveButton.addEventListener("click", async () => {
-  if (!primaryServer.canSave()) return;
-  if (altBooruEnabledCheckbox.checked && !altServer.canSave()) return;
+  if (serverManagers.size > 0 && ![...serverManagers.values()].every((m) => m.canSave())) {
+    return;
+  }
 
-  const primary = primaryServer.getSaveData();
-  const altEnabled = altBooruEnabledCheckbox.checked;
-  const alt = altEnabled ? altServer.getSaveData() : null;
+  const servers = [...serverManagers.values()].map((manager) => manager.getSaveData());
 
   saveButton.disabled = true;
   saveButton.classList.remove("saved");
 
   try {
-    await browser.storage.local.set({
-      serverName: primary.serverName,
-      booruUrl: primary.booruUrl,
-      rating: primary.rating,
-      altBooruEnabled: altEnabled,
-      altServerName: alt ? alt.serverName : "",
-      altBooruUrl: alt ? alt.booruUrl : "",
-      altRating: alt ? alt.rating : "safe"
-    });
+    await saveServersToStorage(servers);
 
     saveButton.classList.add("saved");
     saveButton.textContent = browser.i18n.getMessage("buttonSaved");
@@ -259,30 +312,21 @@ saveButton.addEventListener("click", async () => {
 });
 
 async function load() {
-  const s = await browser.storage.local.get([
-    "serverName",
-    "booruUrl",
-    "rating",
-    "altBooruEnabled",
-    "altServerName",
-    "altBooruUrl",
-    "altRating"
-  ]);
+  const servers = await getServersFromStorage();
 
-  primaryServer.loadValues(s.booruUrl, s.rating, s.serverName);
-  altServer.loadValues(s.altBooruUrl, s.altRating, s.altServerName);
+  serversListEl.textContent = "";
 
-  altBooruEnabledCheckbox.checked = Boolean(s.altBooruEnabled);
-  setAltServerVisible(altBooruEnabledCheckbox.checked);
-
-  setSaveEnabled(false);
-
-  if (s.booruUrl) {
-    await primaryServer.validateConnection(false);
+  for (const entry of servers) {
+    addServerCard(entry);
   }
 
-  if (altBooruEnabledCheckbox.checked && s.altBooruUrl) {
-    await altServer.validateConnection(false);
+  refreshSaveButton();
+
+  for (const manager of serverManagers.values()) {
+    const data = manager.getSaveData();
+    if (data.booruUrl) {
+      await manager.validateConnection(false);
+    }
   }
 
   refreshSaveButton();

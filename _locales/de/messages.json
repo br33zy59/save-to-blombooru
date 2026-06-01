@@ -23,17 +23,17 @@
   "buttonGrantAccess": {
     "message": "Zugriff erlauben"
   },
+  "labelApiKey": {
+    "message": "API-Schlüssel:"
+  },
   "labelFriendlyName": {
-    "message": "Anzeigename (optional):"
+    "message": "Name:"
   },
-  "placeholderFriendlyNameHome": {
-    "message": "z. B. Zuhause"
-  },
-  "placeholderFriendlyNameWork": {
-    "message": "z. B. Arbeit"
+  "placeholderFriendlyName": {
+    "message": "z. B. Mein Blombooru"
   },
   "labelDefaultRating": {
-    "message": "Standardbewertung:"
+    "message": "Inhaltsbewertung:"
   },
   "ratingSafe": {
     "message": "Sicher"
@@ -44,11 +44,17 @@
   "ratingExplicit": {
     "message": "Explizit"
   },
-  "checkboxAltServer": {
-    "message": "Alternativen Server hinzufügen"
+  "buttonAddServer": {
+    "message": "Weiteren Server hinzufügen"
   },
-  "headingAltServer": {
-    "message": "Alternativer Server"
+  "buttonRemoveServer": {
+    "message": "Servereintrag löschen"
+  },
+  "tooltipSaveInvalid": {
+    "message": "Ungültiger Servereintrag. Korrigieren oder entfernen, bevor Sie speichern."
+  },
+  "confirmRemoveServer": {
+    "message": "Dieser Server wird entfernt. Sind Sie sicher?"
   },
   "buttonSaveSettings": {
     "message": "Einstellungen speichern"
@@ -77,8 +83,8 @@
   "errorCouldNotReachServer": {
     "message": "Server nicht erreichbar. Adresse prüfen und erneut versuchen."
   },
-  "errorAuthRequiredInstance": {
-    "message": "Diese Blombooru-Instanz erfordert Authentifizierung. Verwenden Sie vorerst eine Instanz ohne API-Authentifizierung."
+  "errorAuthFailed": {
+    "message": "Authentifizierung fehlgeschlagen. Prüfen Sie Ihren API-Schlüssel."
   },
   "errorUnexpectedStatus": {
     "message": "Server antwortete mit $1$. Dies ist möglicherweise keine Blombooru-Instanz.",
@@ -99,19 +105,25 @@
     "message": "Auf Blombooru speichern"
   },
   "contextMenuWithName": {
+    "message": "Auf $1$ speichern",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Mein Blombooru"
+      }
+    }
+  },
+  "contextMenuWithHost": {
     "message": "Auf Blombooru speichern ($1$)",
     "placeholders": {
       "1": {
         "content": "$1",
-        "example": "Zuhause"
+        "example": "booru.example.com"
       }
     }
   },
-  "contextMenuAlt": {
-    "message": "Auf Blombooru speichern (alternativ)"
-  },
   "errorUploadAuthRequired": {
-    "message": "Upload fehlgeschlagen: Diese Blombooru-Instanz erfordert Authentifizierung. Verwenden Sie vorerst eine Instanz ohne Authentifizierung."
+    "message": "Upload fehlgeschlagen: Authentifizierung erforderlich. Prüfen Sie den API-Schlüssel in den Erweiterungseinstellungen."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload fehlgeschlagen: Methode nicht erlaubt. Prüfen Sie die Blombooru-Basis-URL."
@@ -129,8 +141,8 @@
       }
     }
   },
-  "errorAltServerNotConfigured": {
-    "message": "Alternativer Server ist nicht konfiguriert."
+  "errorServerNotConfigured": {
+    "message": "Dieser Server ist nicht konfiguriert."
   },
   "errorDownloadFailed": {
     "message": "Download fehlgeschlagen: $1$",
