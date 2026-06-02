@@ -223,20 +223,27 @@ function createServerManager(serverId, elements, onStateChange) {
 }
 
 function refreshSaveButton() {
-  if (serverManagers.size === 0) {
-    setSaveEnabled(true);
-    return;
-  }
-
   setSaveEnabled([...serverManagers.values()].every((manager) => manager.canSave()));
 }
 
+function refreshRemoveButtons() {
+  const canRemove = serverManagers.size > 1;
+  serversListEl.querySelectorAll(".server-remove").forEach((button) => {
+    button.hidden = !canRemove;
+  });
+}
+
 function removeServerCard(serverId) {
+  if (serverManagers.size <= 1) {
+    return;
+  }
+
   const card = serversListEl.querySelector(`[data-server-id="${serverId}"]`);
   if (card) {
     card.remove();
   }
   serverManagers.delete(serverId);
+  refreshRemoveButtons();
   refreshSaveButton();
 }
 
@@ -271,6 +278,7 @@ function addServerCard(entry) {
   serverManagers.set(serverId, manager);
 
   serversListEl.appendChild(card);
+  refreshRemoveButtons();
 
   return manager;
 }
@@ -316,10 +324,15 @@ async function load() {
 
   serversListEl.textContent = "";
 
-  for (const entry of servers) {
-    addServerCard(entry);
+  if (servers.length === 0) {
+    addServerCard(createServerEntry());
+  } else {
+    for (const entry of servers) {
+      addServerCard(entry);
+    }
   }
 
+  refreshRemoveButtons();
   refreshSaveButton();
 
   for (const manager of serverManagers.values()) {

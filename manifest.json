@@ -2,8 +2,17 @@
   "manifest_version": 2,
   "default_locale": "en",
   "name": "__MSG_extensionName__",
-  "version": "2.0",
+  "version": "1.0",
   "description": "__MSG_extensionDescription__",
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "save-to-blombooru@foo",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
 
   "permissions": [
     "contextMenus",
@@ -24,11 +33,7 @@
   },
 
   "browser_action": {
-    "default_icon": {
-      "16": "icon.png",
-      "32": "icon.png",
-      "48": "icon.png"
-    },
+    "default_icon": "icon.png",
     "default_title": "__MSG_browserActionTitle__"
   },
 
@@ -39,7 +44,6 @@
   },
 
   "icons": {
-    "48": "icon.png",
     "128": "icon.png"
   }
 }
