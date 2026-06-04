@@ -44,6 +44,9 @@
   "popupChoiceFull": {
     "message": "Full image"
   },
+  "popupChoiceVideo": {
+    "message": "Video"
+  },
   "headingServerDetails": {
     "message": "Server Details"
   },

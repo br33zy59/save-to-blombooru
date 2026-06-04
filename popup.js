@@ -80,9 +80,11 @@ function hideGalleryHoverPreview() {
   galleryHoverPreview.hidden = true;
   galleryHoverPreview.setAttribute("aria-hidden", "true");
   galleryHoverPreviewPane.setAttribute("aria-hidden", "true");
+  galleryHoverPreviewFrame.style.width = "";
+  galleryHoverPreviewFrame.style.height = "";
   galleryHoverPreviewFrame.style.minHeight = "";
-  galleryHoverPreviewImg.style.maxWidth = "";
-  galleryHoverPreviewImg.style.maxHeight = "";
+  galleryHoverPreviewImg.style.width = "";
+  galleryHoverPreviewImg.style.height = "";
 }
 
 function computeGalleryPreviewSize(intrinsicWidth, intrinsicHeight, maxWidth, maxHeight) {
@@ -107,16 +109,19 @@ function computeGalleryPreviewSize(intrinsicWidth, intrinsicHeight, maxWidth, ma
 
 function layoutGalleryHoverPreview(intrinsicWidth, intrinsicHeight) {
   const maxHeight = Math.min(GALLERY_PREVIEW_MAX_HEIGHT, window.innerHeight - 24);
+  const aspectW = galleryHoverPreviewImg.naturalWidth || intrinsicWidth;
+  const aspectH = galleryHoverPreviewImg.naturalHeight || intrinsicHeight;
   const { width, height } = computeGalleryPreviewSize(
-    intrinsicWidth,
-    intrinsicHeight,
+    aspectW,
+    aspectH,
     GALLERY_PREVIEW_MAX_WIDTH,
     maxHeight
   );
 
-  galleryHoverPreviewFrame.style.minHeight = `${height}px`;
-  galleryHoverPreviewImg.style.maxWidth = `${width}px`;
-  galleryHoverPreviewImg.style.maxHeight = `${height}px`;
+  galleryHoverPreviewFrame.style.width = `${width}px`;
+  galleryHoverPreviewFrame.style.height = `${height}px`;
+  galleryHoverPreviewImg.style.width = `${width}px`;
+  galleryHoverPreviewImg.style.height = `${height}px`;
 }
 
 function showGalleryHoverPreview(imageUrl, altText, intrinsicWidth, intrinsicHeight) {
@@ -161,9 +166,7 @@ function bindGalleryHoverPreview(
   intrinsicHeight
 ) {
   cell.addEventListener("mouseenter", () => {
-    const previewSrc = fullUrlAvailable && uploadUrl ? uploadUrl : displayUrl;
-
-    showGalleryHoverPreview(previewSrc, altText, intrinsicWidth, intrinsicHeight);
+    showGalleryHoverPreview(displayUrl, altText, intrinsicWidth, intrinsicHeight);
   });
 }
 
@@ -340,9 +343,18 @@ function bindGallerySaveTrigger(element, srcUrl, anchorEl) {
   });
 }
 
-function createChoiceOverlay(cell, displayUrl, uploadUrl) {
+function getPopupChoiceFullLabel(mediaKind) {
+  if (mediaKind === "video") {
+    return browser.i18n.getMessage("popupChoiceVideo");
+  }
+
+  return browser.i18n.getMessage("popupChoiceFull");
+}
+
+function createChoiceOverlay(cell, displayUrl, uploadUrl, mediaKind) {
   const overlay = document.createElement("div");
   overlay.className = "media-choice-overlay";
+  const fullLabel = getPopupChoiceFullLabel(mediaKind);
 
   const thumbHalf = document.createElement("button");
   thumbHalf.type = "button";
@@ -358,8 +370,8 @@ function createChoiceOverlay(cell, displayUrl, uploadUrl) {
   const fullHalf = document.createElement("button");
   fullHalf.type = "button";
   fullHalf.className = "media-choice-half media-choice-half--full";
-  fullHalf.title = browser.i18n.getMessage("popupChoiceFull");
-  fullHalf.textContent = browser.i18n.getMessage("popupChoiceFull");
+  fullHalf.title = fullLabel;
+  fullHalf.textContent = fullLabel;
   bindGallerySaveTrigger(fullHalf, uploadUrl, cell);
 
   overlay.append(thumbHalf, divider, fullHalf);
@@ -422,7 +434,7 @@ function renderPageMediaGallery(items) {
     img.decoding = "async";
     img.src = displayUrl;
 
-    if (item.kind === "video") {
+    if (item.kind === "video" || item.kind === "animated") {
       img.classList.add("media-thumb--video");
     }
 
@@ -433,16 +445,16 @@ function renderPageMediaGallery(items) {
 
     thumbWrap.appendChild(img);
 
-    if (item.kind === "video") {
+    if (item.kind === "video" || item.kind === "animated") {
       const badge = document.createElement("span");
       badge.className = "media-kind-badge";
-      badge.textContent = "▶";
+      badge.textContent = item.kind === "animated" ? "GIF" : "▶";
       badge.setAttribute("aria-hidden", "true");
       thumbWrap.appendChild(badge);
     }
 
     if (item.fullUrlAvailable) {
-      thumbWrap.appendChild(createChoiceOverlay(cell, displayUrl, uploadUrl));
+      thumbWrap.appendChild(createChoiceOverlay(cell, displayUrl, uploadUrl, item.kind));
     } else {
       bindGallerySaveTrigger(thumbWrap, displayUrl, cell);
     }

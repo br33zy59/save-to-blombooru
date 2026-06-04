@@ -220,13 +220,31 @@ async function extractMediaBlobInPage(srcUrl) {
   }
 
   if (mediaEl instanceof HTMLVideoElement) {
-    try {
-      const response = await fetch(mediaEl.currentSrc || mediaEl.src);
-      if (response.ok) {
-        return blobToPayload(await response.blob());
+    const fetchUrls = new Set([targetUrl]);
+
+    for (const value of [mediaEl.currentSrc, mediaEl.src]) {
+      const normalized = normalizeMediaUrl(value);
+      if (normalized) {
+        fetchUrls.add(normalized);
       }
-    } catch (e) {
-      return null;
+    }
+
+    for (const source of mediaEl.querySelectorAll("source")) {
+      const normalized = normalizeMediaUrl(source.src);
+      if (normalized) {
+        fetchUrls.add(normalized);
+      }
+    }
+
+    for (const url of fetchUrls) {
+      try {
+        const response = await fetch(url);
+        if (response.ok) {
+          return blobToPayload(await response.blob());
+        }
+      } catch (e) {
+        // Try next candidate URL.
+      }
     }
   }
 
@@ -235,7 +253,11 @@ async function extractMediaBlobInPage(srcUrl) {
 
 // Injected to list images/videos on the page for the toolbar popup gallery.
 // Optional lookupSrcUrl: resolve thumbnail vs full for a single right-clicked URL.
+// Upload targets match Blombooru: JPG, PNG, WEBP, GIF, MP4, WEBM.
 function enumeratePageMediaInPage(lookupSrcUrl) {
+  const BOORU_VIDEO_EXT_RE = /\.(mp4|webm)(\?|$)/i;
+  const BOORU_ANIMATED_IMAGE_EXT_RE = /\.gif(\?|$)/i;
+
   const DATA_FULL_ATTRS = [
     "data-src",
     "data-full",
@@ -278,7 +300,16 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       return true;
     }
 
-    return /^data:image\//i.test(href);
+    if (/^data:image\//i.test(href) || /^data:video\//i.test(href)) {
+      return true;
+    }
+
+    try {
+      const path = new URL(href).pathname;
+      return BOORU_VIDEO_EXT_RE.test(path);
+    } catch (e) {
+      return false;
+    }
   }
 
   function looksLikeDirectImageUrl(href) {
@@ -288,6 +319,28 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     } catch (e) {
       return false;
     }
+  }
+
+  function looksLikeDirectVideoUrl(href) {
+    try {
+      const path = new URL(href).pathname;
+      return BOORU_VIDEO_EXT_RE.test(path);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function looksLikeDirectAnimatedImageUrl(href) {
+    try {
+      const path = new URL(href).pathname;
+      return BOORU_ANIMATED_IMAGE_EXT_RE.test(path);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function looksLikeUploadableMediaUrl(href) {
+    return looksLikeDirectImageUrl(href) || looksLikeDirectVideoUrl(href);
   }
 
   function filenameFromUrl(href) {
@@ -334,11 +387,11 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       return false;
     }
 
-    return /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?.*)?$/i.test(raw);
+    return /\.(jpe?g|png|gif|webp|avif|bmp|svg|mp4|webm)(\?.*)?$/i.test(raw);
   }
 
   /** True when two URLs are the same asset (duplicate lazy-load refs, not thumb vs full). */
-  function urlsReferToSameImage(urlA, urlB) {
+  function urlsReferToSameMedia(urlA, urlB) {
     if (!urlA || !urlB) {
       return false;
     }
@@ -379,6 +432,8 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
 
     return false;
   }
+
+  const urlsReferToSameImage = urlsReferToSameMedia;
 
   function isDataAttrDuplicateReference(displayUrl, dataRef) {
     if (!dataRef?.url) {
@@ -432,25 +487,25 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     return { url: bestUrl, score: bestScore };
   }
 
-  function findAnchorImageUrl(el) {
+  function findAnchorMediaUrl(el) {
     const anchor = el.closest("a[href]");
     if (!anchor) {
       return null;
     }
 
     const href = normalizeMediaUrl(anchor.href);
-    if (!href || !isUsableMediaUrl(href) || !looksLikeDirectImageUrl(href)) {
+    if (!href || !isUsableMediaUrl(href) || !looksLikeUploadableMediaUrl(href)) {
       return null;
     }
 
     return href;
   }
 
-  function findDataAttributeImageUrl(el) {
+  function findDataAttributeMediaUrl(el) {
     for (const attr of DATA_FULL_ATTRS) {
       const raw = el.getAttribute(attr) || el.closest(`[${attr}]`)?.getAttribute(attr);
       const href = normalizeMediaUrl(raw);
-      if (href && isUsableMediaUrl(href) && looksLikeDirectImageUrl(href)) {
+      if (href && isUsableMediaUrl(href) && looksLikeUploadableMediaUrl(href)) {
         return { url: href, raw: raw || "" };
       }
     }
@@ -459,12 +514,32 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
   }
 
   function isHighConfidenceFull(displayUrl, fullUrl, method, img) {
-    if (!fullUrl || urlsReferToSameImage(displayUrl, fullUrl)) {
+    if (!fullUrl || urlsReferToSameMedia(displayUrl, fullUrl)) {
       return false;
+    }
+
+    if (
+      looksLikeDirectVideoUrl(fullUrl) &&
+      looksLikeDirectImageUrl(displayUrl) &&
+      !looksLikeDirectVideoUrl(displayUrl)
+    ) {
+      return method === "anchor" || method === "data-attr" || method === "video-src";
+    }
+
+    if (
+      looksLikeDirectAnimatedImageUrl(fullUrl) &&
+      looksLikeDirectImageUrl(displayUrl) &&
+      (method === "anchor" || method === "data-attr")
+    ) {
+      return true;
     }
 
     if (method === "anchor" || method === "data-attr") {
       return true;
+    }
+
+    if (method === "video-src") {
+      return looksLikeDirectVideoUrl(fullUrl);
     }
 
     if (method === "srcset") {
@@ -492,25 +567,134 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     const candidates = [];
 
     const largestSrcset = pickLargestSrcset(img);
-    if (largestSrcset?.url && !urlsReferToSameImage(displayUrl, largestSrcset.url)) {
+    if (largestSrcset?.url && !urlsReferToSameMedia(displayUrl, largestSrcset.url)) {
       candidates.push({ url: largestSrcset.url, method: "srcset" });
     }
 
-    const anchorUrl = findAnchorImageUrl(img);
-    if (anchorUrl && !urlsReferToSameImage(displayUrl, anchorUrl)) {
+    const anchorUrl = findAnchorMediaUrl(img);
+    if (anchorUrl && !urlsReferToSameMedia(displayUrl, anchorUrl)) {
       candidates.push({ url: anchorUrl, method: "anchor" });
     }
 
-    const dataRef = findDataAttributeImageUrl(img);
+    const dataRef = findDataAttributeMediaUrl(img);
     if (dataRef && !isDataAttrDuplicateReference(displayUrl, dataRef)) {
       candidates.push({ url: dataRef.url, method: "data-attr" });
     }
 
-    const order = { anchor: 0, "data-attr": 1, srcset: 2 };
+    const order = { anchor: 0, "data-attr": 1, "video-src": 2, srcset: 3 };
     candidates.sort((a, b) => order[a.method] - order[b.method]);
 
     for (const candidate of candidates) {
       if (isHighConfidenceFull(displayUrl, candidate.url, candidate.method, img)) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  function getVideoStreamUrl(video) {
+    const streamUrls = [];
+
+    const consider = (value) => {
+      const href = normalizeMediaUrl(value);
+      if (href && isUsableMediaUrl(href) && looksLikeDirectVideoUrl(href)) {
+        streamUrls.push(href);
+      }
+    };
+
+    consider(video.currentSrc);
+    consider(video.src);
+
+    for (const source of video.querySelectorAll("source")) {
+      consider(source.src);
+    }
+
+    for (const attr of DATA_FULL_ATTRS) {
+      consider(video.getAttribute(attr));
+      consider(video.closest(`[${attr}]`)?.getAttribute(attr));
+    }
+
+    return [...new Set(streamUrls)][0] ?? null;
+  }
+
+  function getVideoPosterUrl(video) {
+    const poster = normalizeMediaUrl(video.poster);
+    if (poster && isUsableMediaUrl(poster) && looksLikeDirectImageUrl(poster)) {
+      return poster;
+    }
+
+    const container =
+      video.closest("figure, a, [class*='thumb'], [class*='preview'], [class*='poster']") ||
+      video.parentElement;
+
+    if (container) {
+      for (const img of container.querySelectorAll("img")) {
+        if (img === video) {
+          continue;
+        }
+
+        const href = normalizeMediaUrl(img.currentSrc || img.src);
+        if (href && isUsableMediaUrl(href) && looksLikeDirectImageUrl(href)) {
+          return href;
+        }
+      }
+    }
+
+    const previous = video.previousElementSibling;
+    if (previous instanceof HTMLImageElement) {
+      const href = normalizeMediaUrl(previous.currentSrc || previous.src);
+      if (href && isUsableMediaUrl(href) && looksLikeDirectImageUrl(href)) {
+        return href;
+      }
+    }
+
+    return null;
+  }
+
+  function isHighConfidenceVideoFull(displayUrl, fullUrl, method) {
+    if (!fullUrl || urlsReferToSameMedia(displayUrl, fullUrl)) {
+      return false;
+    }
+
+    if (looksLikeDirectVideoUrl(fullUrl)) {
+      if (looksLikeDirectImageUrl(displayUrl) && !looksLikeDirectVideoUrl(displayUrl)) {
+        return true;
+      }
+
+      return method === "video-src" || method === "anchor" || method === "data-attr";
+    }
+
+    if (looksLikeDirectAnimatedImageUrl(fullUrl) && looksLikeDirectImageUrl(displayUrl)) {
+      return method === "anchor" || method === "data-attr";
+    }
+
+    return false;
+  }
+
+  function resolveVideoFullCandidate(displayUrl, video) {
+    const candidates = [];
+    const streamUrl = getVideoStreamUrl(video);
+
+    if (streamUrl && !urlsReferToSameMedia(displayUrl, streamUrl)) {
+      candidates.push({ url: streamUrl, method: "video-src" });
+    }
+
+    const anchorUrl = findAnchorMediaUrl(video);
+    if (anchorUrl && !urlsReferToSameMedia(displayUrl, anchorUrl)) {
+      candidates.push({ url: anchorUrl, method: "anchor" });
+    }
+
+    const dataRef = findDataAttributeMediaUrl(video);
+    if (dataRef && !isDataAttrDuplicateReference(displayUrl, dataRef)) {
+      candidates.push({ url: dataRef.url, method: "data-attr" });
+    }
+
+    const order = { anchor: 0, "data-attr": 1, "video-src": 2 };
+    candidates.sort((a, b) => order[a.method] - order[b.method]);
+
+    for (const candidate of candidates) {
+      if (isHighConfidenceVideoFull(displayUrl, candidate.url, candidate.method)) {
         return candidate;
       }
     }
@@ -526,13 +710,18 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
 
     const full = resolveFullCandidate(displayUrl, img);
     const uploadUrl = full?.url || displayUrl;
+    let kind = looksLikeDirectVideoUrl(uploadUrl) ? "video" : "image";
+
+    if (kind === "image" && looksLikeDirectAnimatedImageUrl(uploadUrl)) {
+      kind = "animated";
+    }
 
     return {
       displayUrl,
       uploadUrl,
       fullUrlAvailable: Boolean(full),
       resolveMethod: full?.method || "display",
-      kind: "image",
+      kind,
       filename: filenameFromUrl(displayUrl),
       intrinsicWidth:
         img.naturalWidth ||
@@ -548,40 +737,24 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
   }
 
   function buildVideoItem(video) {
-    const displayUrl = normalizeMediaUrl(
-      video.poster || video.currentSrc || video.src
-    );
+    const streamUrl = getVideoStreamUrl(video);
+    const posterUrl = getVideoPosterUrl(video);
+    const displayUrl = posterUrl || streamUrl;
+
     if (!displayUrl || !isUsableMediaUrl(displayUrl)) {
       return null;
     }
 
-    const streamUrl = normalizeMediaUrl(video.currentSrc || video.src);
-    let full = null;
-
-    if (streamUrl && streamUrl !== displayUrl && looksLikeDirectImageUrl(streamUrl) === false) {
-      if (isUsableMediaUrl(streamUrl)) {
-        full = { url: streamUrl, method: "video-src" };
-      }
-    }
-
-    const anchorUrl = findAnchorImageUrl(video);
-    if (anchorUrl && anchorUrl !== displayUrl) {
-      full = { url: anchorUrl, method: "anchor" };
-    }
-
-    const uploadUrl = full?.url || displayUrl;
-    const fullUrlAvailable =
-      Boolean(full) &&
-      full.method === "anchor" &&
-      looksLikeDirectImageUrl(full.url);
+    const full = resolveVideoFullCandidate(displayUrl, video);
+    const uploadUrl = full?.url || streamUrl || displayUrl;
 
     return {
       displayUrl,
       uploadUrl,
-      fullUrlAvailable,
+      fullUrlAvailable: Boolean(full),
       resolveMethod: full?.method || "display",
       kind: "video",
-      filename: filenameFromUrl(displayUrl),
+      filename: filenameFromUrl(uploadUrl),
       intrinsicWidth: video.videoWidth || video.width || 0,
       intrinsicHeight: video.videoHeight || video.height || 0
     };
