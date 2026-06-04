@@ -156,6 +156,56 @@
 
 
 
+    .gallery-hover-preview__filename,
+
+    .gallery-hover-preview__dimensions {
+
+      margin: 0;
+
+      max-width: 100%;
+
+      font-size: 11px;
+
+      line-height: 1.3;
+
+      text-align: center;
+
+      color: GrayText;
+
+      word-break: break-all;
+
+    }
+
+
+
+    .gallery-hover-preview__filename {
+
+      margin-top: 8px;
+
+    }
+
+
+
+    .gallery-hover-preview__dimensions {
+
+      margin-top: 4px;
+
+      font-variant-numeric: tabular-nums;
+
+    }
+
+
+
+    .gallery-hover-preview__filename[hidden],
+
+    .gallery-hover-preview__dimensions[hidden] {
+
+      display: none;
+
+    }
+
+
+
     .popup-main {
 
       flex: 1 1 auto;
@@ -466,13 +516,71 @@
 
 
 
-    .media-cell--has-full:hover .media-choice-overlay,
+    .media-cell:hover .media-choice-overlay,
 
-    .media-cell--has-full:focus-within .media-choice-overlay,
+    .media-cell:focus-within .media-choice-overlay,
 
-    .media-cell--has-full.media-cell--show-choice .media-choice-overlay {
+    .media-cell--show-choice .media-choice-overlay {
 
       display: flex;
+
+    }
+
+
+
+    .media-choice-overlay--single {
+
+      align-items: center;
+
+      justify-content: center;
+
+    }
+
+
+
+    .media-choice-single {
+
+      display: flex;
+
+      align-items: center;
+
+      justify-content: center;
+
+      width: 100%;
+
+      height: 100%;
+
+      margin: 0;
+
+      padding: 8px;
+
+      border: none;
+
+      background: transparent;
+
+      color: inherit;
+
+      font: inherit;
+
+      font-size: 12px;
+
+      line-height: 1.2;
+
+      text-align: center;
+
+      cursor: pointer;
+
+    }
+
+
+
+    .media-choice-single:hover,
+
+    .media-choice-single:focus-visible {
+
+      background: color-mix(in srgb, #fff 18%, transparent);
+
+      outline: none;
 
     }
 
@@ -759,6 +867,8 @@
         <div id="galleryHoverPreviewFrame" class="gallery-hover-preview__frame">
           <img id="galleryHoverPreviewImg" class="gallery-hover-preview__img" alt="" decoding="async">
         </div>
+        <p id="galleryHoverPreviewFilename" class="gallery-hover-preview__filename" hidden></p>
+        <p id="galleryHoverPreviewDimensions" class="gallery-hover-preview__dimensions" hidden></p>
       </div>
     </aside>
 

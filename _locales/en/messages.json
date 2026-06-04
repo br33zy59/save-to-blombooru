@@ -47,6 +47,12 @@
   "popupChoiceVideo": {
     "message": "Video"
   },
+  "popupGalleryUpload": {
+    "message": "Upload"
+  },
+  "popupGalleryPreviewDimensionsUnknown": {
+    "message": "Resolution unknown"
+  },
   "headingServerDetails": {
     "message": "Server Details"
   },
