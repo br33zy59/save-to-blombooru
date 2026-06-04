@@ -28,7 +28,14 @@
   ],
 
   "background": {
-    "scripts": ["servers.js", "auth.js", "media-context.js", "background.js"],
+    "scripts": [
+      "browser.js",
+      "permissions.js",
+      "servers.js",
+      "auth.js",
+      "media-context.js",
+      "background.js"
+    ],
     "persistent": true
   },
 

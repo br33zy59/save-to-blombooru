@@ -34,6 +34,19 @@ const serverCardTemplate = document.getElementById("serverCardTemplate");
 const defaultSaveLabel = browser.i18n.getMessage("buttonSaveSettings");
 
 const serverManagers = new Map();
+const removeServerDialog = document.getElementById("removeServerDialog");
+
+function confirmRemoveServerDialog() {
+  return new Promise((resolve) => {
+    function onClose() {
+      removeServerDialog.removeEventListener("close", onClose);
+      resolve(removeServerDialog.returnValue === "confirm");
+    }
+
+    removeServerDialog.addEventListener("close", onClose);
+    removeServerDialog.showModal();
+  });
+}
 
 function showSaveStatus(message, type) {
   saveStatusEl.textContent = message;
@@ -51,28 +64,6 @@ function setSaveEnabled(enabled) {
   } else {
     saveButtonWrap.removeAttribute("title");
   }
-}
-
-function getOriginPattern(booruUrl) {
-  return new URL(booruUrl).origin + "/*";
-}
-
-async function ensureHostPermission(originPattern, requestIfNeeded) {
-  const hasPermission = await browser.permissions.contains({
-    origins: [originPattern]
-  });
-
-  if (hasPermission) {
-    return true;
-  }
-
-  if (!requestIfNeeded) {
-    return false;
-  }
-
-  return browser.permissions.request({
-    origins: [originPattern]
-  });
 }
 
 function createServerManager(serverId, elements, onStateChange) {
@@ -111,7 +102,7 @@ function createServerManager(serverId, elements, onStateChange) {
 
       let originPattern;
       try {
-        originPattern = getOriginPattern(booruUrl);
+        originPattern = originPatternFromUrl(booruUrl);
       } catch (e) {
         showUrlStatus(browser.i18n.getMessage("errorInvalidUrl"), "error");
         connectionValid = false;
@@ -265,9 +256,8 @@ function addServerCard(entry) {
   localizePage(card);
 
   const removeButton = card.querySelector(".server-remove");
-  removeButton.addEventListener("click", () => {
-    const confirmed = window.confirm(browser.i18n.getMessage("confirmRemoveServer"));
-    if (confirmed) {
+  removeButton.addEventListener("click", async () => {
+    if (await confirmRemoveServerDialog()) {
       removeServerCard(serverId);
     }
   });

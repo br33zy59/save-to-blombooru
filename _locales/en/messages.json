@@ -56,6 +56,9 @@
   "confirmRemoveServer": {
     "message": "This will remove the server. Are you sure?"
   },
+  "buttonCancel": {
+    "message": "Cancel"
+  },
   "buttonSaveSettings": {
     "message": "Save Settings"
   },
@@ -85,6 +88,18 @@
   },
   "errorAuthFailed": {
     "message": "Authentication failed. Check your API key."
+  },
+  "errorApiKeyInvalidFormat": {
+    "message": "Blombooru API keys start with \"blom_\". Copy the full key shown when it was created."
+  },
+  "errorApiKeyUploadUnsupportedVersion": {
+    "message": "This Blombooru version ($1$) cannot upload with an API key. Upgrade to v1.40.0 or newer.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.39.0"
+      }
+    }
   },
   "errorUnexpectedStatus": {
     "message": "Server returned $1$. This may not be a Blombooru instance.",
@@ -123,7 +138,10 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Upload failed: authentication required. Check the API key in extension settings."
+    "message": "Upload failed: authentication required. Check the API key and ensure Blombooru is v1.40.0 or newer."
+  },
+  "errorUploadHostPermission": {
+    "message": "Upload cancelled: allow access to your Blombooru server when prompted."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload failed: method not allowed. Check your Blombooru base URL."

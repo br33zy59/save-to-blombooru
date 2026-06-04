@@ -1,4 +1,4 @@
-console.log("=== Blombooru Uploader (MV3) LOADED ===");
+const toolbarAction = browser.action || browser.browserAction;
 
 const BADGE_CLEAR_MS = 2500;
 const BADGE_SUCCESS = "✓";
@@ -11,9 +11,9 @@ let badgeClearTimeout = null;
 let badgeActivityInterval = null;
 
 function setToolbarBadge(text, color) {
-  browser.browserAction.setBadgeText({ text });
+  toolbarAction.setBadgeText({ text });
   if (color) {
-    browser.browserAction.setBadgeBackgroundColor({ color });
+    toolbarAction.setBadgeBackgroundColor({ color });
   }
 }
 
@@ -25,7 +25,7 @@ function clearToolbarBadgeSoon() {
   badgeClearTimeout = setTimeout(() => {
     badgeClearTimeout = null;
     if (activeUploadCount === 0) {
-      browser.browserAction.setBadgeText({ text: "" });
+      toolbarAction.setBadgeText({ text: "" });
     }
   }, BADGE_CLEAR_MS);
 }
@@ -128,20 +128,97 @@ function buildUploadDescription(captionText) {
   return capturedLine;
 }
 
+async function runInTab(tabId, func, args) {
+  if (browser.scripting?.executeScript) {
+    const results = await browser.scripting.executeScript({
+      target: { tabId },
+      func,
+      args
+    });
+    return results?.[0]?.result;
+  }
+
+  const results = await browser.tabs.executeScript(tabId, {
+    func,
+    args
+  });
+  return results?.[0];
+}
+
 async function captureMediaCaption(tabId, srcUrl) {
   if (tabId < 0 || !srcUrl) {
     return "";
   }
 
   try {
-    const results = await browser.tabs.executeScript(tabId, {
-      func: extractMediaCaptionInPage,
-      args: [srcUrl]
-    });
-    return results?.[0] || "";
+    return (await runInTab(tabId, extractMediaCaptionInPage, [srcUrl])) ?? "";
   } catch (e) {
     return "";
   }
+}
+
+function base64ToBlob(base64, mimeType) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function acquireMediaBlobFromTab(tabId, srcUrl) {
+  const payload = await runInTab(tabId, extractMediaBlobInPage, [srcUrl]);
+
+  if (!payload?.base64) {
+    return null;
+  }
+
+  return base64ToBlob(payload.base64, payload.mimeType);
+}
+
+async function fetchMediaBlob(srcUrl, requestPermission) {
+  const originPattern = originPatternFromUrl(srcUrl);
+  const hasPermission = await ensureHostPermission(originPattern, requestPermission);
+
+  if (!hasPermission) {
+    return null;
+  }
+
+  const response = await fetch(srcUrl);
+
+  if (!response.ok) {
+    throw new Error(
+      browser.i18n.getMessage("errorDownloadFailed", String(response.status))
+    );
+  }
+
+  return response.blob();
+}
+
+async function resolveMediaBlob(tabId, srcUrl, requestPermission) {
+  if (hasInstallTimeBroadHostAccess()) {
+    return fetchMediaBlob(srcUrl, false);
+  }
+
+  if (tabId >= 0) {
+    try {
+      const blob = await acquireMediaBlobFromTab(tabId, srcUrl);
+      if (blob) {
+        return blob;
+      }
+    } catch (e) {
+      // Fall through to optional host permission + fetch.
+    }
+  }
+
+  const blob = await fetchMediaBlob(srcUrl, requestPermission);
+  if (blob) {
+    return blob;
+  }
+
+  throw new Error(browser.i18n.getMessage("errorDownloadFailed", "0"));
 }
 
 function getConfiguredServers(servers) {
@@ -179,12 +256,38 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     return;
   }
 
+  const booruOriginPattern = originPatternFromUrl(server.booruUrl);
+  const hasBooruAccess = await ensureHostPermission(booruOriginPattern, true);
+
+  if (!hasBooruAccess) {
+    browser.notifications.create({
+      type: "basic",
+      iconUrl: browser.runtime.getURL("icon.png"),
+      title: browser.i18n.getMessage("notificationUploadFailedTitle"),
+      message: browser.i18n.getMessage("errorUploadHostPermission")
+    });
+    return;
+  }
+
   const filename = info.srcUrl.split("/").pop() || "upload.bin";
   const caption = await captureMediaCaption(info.tabId, info.srcUrl);
   const description = buildUploadDescription(caption);
 
+  let mediaBlob;
+  try {
+    mediaBlob = await resolveMediaBlob(info.tabId, info.srcUrl, true);
+  } catch (err) {
+    browser.notifications.create({
+      type: "basic",
+      iconUrl: browser.runtime.getURL("icon.png"),
+      title: browser.i18n.getMessage("notificationUploadFailedTitle"),
+      message: err.message
+    });
+    return;
+  }
+
   performUpload({
-    srcUrl: info.srcUrl,
+    mediaBlob,
     filename,
     source: info.srcUrl,
     description,
@@ -198,44 +301,53 @@ browser.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-async function setContextMenuVisible(menuId, visible) {
-  try {
-    await browser.contextMenus.update(menuId, { visible });
-  } catch (e) {
-    // Item may not exist.
+async function resolvePageUrlForMenus(pageUrl) {
+  if (pageUrl) {
+    return pageUrl;
+  }
+
+  const [activeTab] = await browser.tabs.query({
+    active: true,
+    currentWindow: true
+  });
+
+  return activeTab?.url ?? null;
+}
+
+async function updateContextMenus(pageUrl = null) {
+  const resolvedPageUrl = await resolvePageUrlForMenus(pageUrl);
+  const servers = getConfiguredServers(await getServersFromStorage());
+
+  await browser.contextMenus.removeAll();
+
+  for (const server of servers) {
+    if (resolvedPageUrl && isSameServerOrigin(resolvedPageUrl, server.booruUrl)) {
+      continue;
+    }
+
+    browser.contextMenus.create({
+      id: server.id,
+      title: getMenuTitle(server, servers),
+      contexts: ["image", "video"]
+    });
   }
 }
 
 async function syncContextMenuVisibilityForPageUrl(pageUrl) {
-  if (!pageUrl) {
-    return;
-  }
-
-  const servers = getConfiguredServers(await getServersFromStorage());
-
-  for (const server of servers) {
-    await setContextMenuVisible(server.id, !isSameServerOrigin(pageUrl, server.booruUrl));
-  }
+  await updateContextMenus(pageUrl);
 }
 
 async function syncContextMenuVisibilityForTab(tabId) {
   try {
     const tab = await browser.tabs.get(tabId);
-    await syncContextMenuVisibilityForPageUrl(tab.url);
+    await updateContextMenus(tab.url);
   } catch (e) {
     // Tab may have been closed.
   }
 }
 
 async function syncContextMenuVisibilityForActiveTab() {
-  const [activeTab] = await browser.tabs.query({
-    active: true,
-    currentWindow: true
-  });
-
-  if (activeTab?.url) {
-    await syncContextMenuVisibilityForPageUrl(activeTab.url);
-  }
+  await updateContextMenus();
 }
 
 browser.tabs.onActivated.addListener((activeInfo) => {
@@ -254,36 +366,22 @@ browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
   });
 });
 
-browser.windows.onFocusChanged.addListener((windowId) => {
-  if (windowId === browser.windows.WINDOW_ID_NONE) {
-    return;
-  }
-
-  browser.tabs.query({ active: true, windowId }).then(([activeTab]) => {
-    if (activeTab?.url) {
-      syncContextMenuVisibilityForPageUrl(activeTab.url);
+if (browser.windows?.onFocusChanged) {
+  browser.windows.onFocusChanged.addListener((windowId) => {
+    if (windowId === browser.windows.WINDOW_ID_NONE) {
+      return;
     }
-  });
-});
 
-async function updateContextMenus() {
-  const servers = getConfiguredServers(await getServersFromStorage());
-
-  await browser.contextMenus.removeAll();
-
-  for (const server of servers) {
-    browser.contextMenus.create({
-      id: server.id,
-      title: getMenuTitle(server, servers),
-      contexts: ["image", "video"]
+    browser.tabs.query({ active: true, windowId }).then(([activeTab]) => {
+      if (activeTab?.url) {
+        syncContextMenuVisibilityForPageUrl(activeTab.url);
+      }
     });
-  }
-
-  await syncContextMenuVisibilityForActiveTab();
+  });
 }
 
 function uploadErrorMessage(status, bodyText) {
-  if (status === 401 || status === 403) {
+  if (status === 401) {
     return browser.i18n.getMessage("errorUploadAuthRequired");
   }
 
@@ -314,15 +412,11 @@ async function performUpload(data) {
 
     const uploadUrl = getMediaUploadUrl(booruUrl);
 
-    const mediaResponse = await fetch(data.srcUrl);
-
-    if (!mediaResponse.ok) {
-      throw new Error(
-        browser.i18n.getMessage("errorDownloadFailed", String(mediaResponse.status))
-      );
+    if (!data.mediaBlob) {
+      throw new Error(browser.i18n.getMessage("errorDownloadFailed", "0"));
     }
 
-    const blob = await mediaResponse.blob();
+    const blob = data.mediaBlob;
     const form = new FormData();
 
     form.append("file", blob, data.filename);
@@ -381,14 +475,14 @@ async function performUpload(data) {
 
     browser.notifications.create({
       type: "basic",
-      iconUrl: "icon.png",
+      iconUrl: browser.runtime.getURL("icon.png"),
       title: browser.i18n.getMessage("notificationUploadFailedTitle"),
       message: err.message
     });
   }
 }
 
-browser.browserAction.onClicked.addListener(() => {
+toolbarAction.onClicked.addListener(() => {
   browser.runtime.openOptionsPage();
 });
 

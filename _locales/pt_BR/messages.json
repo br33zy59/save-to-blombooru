@@ -56,6 +56,9 @@
   "confirmRemoveServer": {
     "message": "Este servidor será removido. Tem certeza?"
   },
+  "buttonCancel": {
+    "message": "Cancelar"
+  },
   "buttonSaveSettings": {
     "message": "Salvar configurações"
   },
@@ -85,6 +88,18 @@
   },
   "errorAuthFailed": {
     "message": "Falha na autenticação. Verifique sua chave de API."
+  },
+  "errorApiKeyInvalidFormat": {
+    "message": "Chaves de API do Blombooru começam com \"blom_\". Copie a chave completa exibida na criação."
+  },
+  "errorApiKeyUploadUnsupportedVersion": {
+    "message": "Esta versão do Blombooru ($1$) não permite envios com chave de API. Atualize para v1.40.0 ou mais recente.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.39.0"
+      }
+    }
   },
   "errorUnexpectedStatus": {
     "message": "O servidor retornou $1$. Talvez não seja uma instância Blombooru.",
@@ -123,7 +138,10 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Falha no envio: autenticação necessária. Verifique a chave de API nas configurações da extensão."
+    "message": "Falha no envio: autenticação necessária. Verifique a chave de API e se o Blombooru é v1.40.0 ou mais recente."
+  },
+  "errorUploadHostPermission": {
+    "message": "Envio cancelado: permita o acesso ao seu servidor Blombooru quando solicitado."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Falha no envio: método não permitido. Verifique a URL base do Blombooru."

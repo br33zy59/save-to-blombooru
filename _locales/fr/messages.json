@@ -56,6 +56,9 @@
   "confirmRemoveServer": {
     "message": "Ce serveur sera supprimé. Voulez-vous continuer ?"
   },
+  "buttonCancel": {
+    "message": "Annuler"
+  },
   "buttonSaveSettings": {
     "message": "Enregistrer les paramètres"
   },
@@ -85,6 +88,18 @@
   },
   "errorAuthFailed": {
     "message": "Échec de l'authentification. Vérifiez votre clé API."
+  },
+  "errorApiKeyInvalidFormat": {
+    "message": "Les clés API Blombooru commencent par « blom_ ». Copiez la clé complète affichée à la création."
+  },
+  "errorApiKeyUploadUnsupportedVersion": {
+    "message": "Cette version de Blombooru ($1$) ne permet pas les envois par clé API. Mettez à jour vers v1.40.0 ou plus récent.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.39.0"
+      }
+    }
   },
   "errorUnexpectedStatus": {
     "message": "Le serveur a renvoyé $1$. Il ne s'agit peut-être pas d'une instance Blombooru.",
@@ -123,7 +138,10 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Échec de l'envoi : authentification requise. Vérifiez la clé API dans les paramètres de l'extension."
+    "message": "Échec de l'envoi : authentification requise. Vérifiez la clé API et que Blombooru est en v1.40.0 ou plus récent."
+  },
+  "errorUploadHostPermission": {
+    "message": "Envoi annulé : autorisez l'accès à votre serveur Blombooru lorsque le navigateur le demande."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Échec de l'envoi : méthode non autorisée. Vérifiez l'URL de base Blombooru."

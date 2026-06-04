@@ -56,6 +56,9 @@
   "confirmRemoveServer": {
     "message": "Se eliminará este servidor. ¿Está seguro?"
   },
+  "buttonCancel": {
+    "message": "Cancelar"
+  },
   "buttonSaveSettings": {
     "message": "Guardar configuración"
   },
@@ -85,6 +88,18 @@
   },
   "errorAuthFailed": {
     "message": "Error de autenticación. Compruebe su clave API."
+  },
+  "errorApiKeyInvalidFormat": {
+    "message": "Las claves API de Blombooru empiezan por \"blom_\". Copie la clave completa mostrada al crearla."
+  },
+  "errorApiKeyUploadUnsupportedVersion": {
+    "message": "Esta versión de Blombooru ($1$) no permite subidas con clave API. Actualice a v1.40.0 o superior.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.39.0"
+      }
+    }
   },
   "errorUnexpectedStatus": {
     "message": "El servidor devolvió $1$. Puede que no sea una instancia de Blombooru.",
@@ -123,7 +138,10 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Error al subir: se requiere autenticación. Compruebe la clave API en los ajustes de la extensión."
+    "message": "Error al subir: se requiere autenticación. Compruebe la clave API y que Blombooru sea v1.40.0 o superior."
+  },
+  "errorUploadHostPermission": {
+    "message": "Subida cancelada: permita el acceso a su servidor Blombooru cuando se le solicite."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Error al subir: método no permitido. Compruebe la URL base de Blombooru."

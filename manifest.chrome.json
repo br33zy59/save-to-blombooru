@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "default_locale": "en",
+  "name": "__MSG_extensionName__",
+  "version": "1.0",
+  "description": "__MSG_extensionDescription__",
+
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "storage",
+    "tabs",
+    "notifications",
+    "scripting"
+  ],
+
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+
+  "background": {
+    "service_worker": "background-sw.js"
+  },
+
+  "action": {
+    "default_icon": "icon.png",
+    "default_title": "__MSG_browserActionTitle__"
+  },
+
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+
+  "icons": {
+    "128": "icon.png"
+  }
+}

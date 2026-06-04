@@ -56,6 +56,9 @@
   "confirmRemoveServer": {
     "message": "Dieser Server wird entfernt. Sind Sie sicher?"
   },
+  "buttonCancel": {
+    "message": "Abbrechen"
+  },
   "buttonSaveSettings": {
     "message": "Einstellungen speichern"
   },
@@ -85,6 +88,18 @@
   },
   "errorAuthFailed": {
     "message": "Authentifizierung fehlgeschlagen. Prüfen Sie Ihren API-Schlüssel."
+  },
+  "errorApiKeyInvalidFormat": {
+    "message": "Blombooru-API-Schlüssel beginnen mit \"blom_\". Kopieren Sie den vollständigen Schlüssel aus der Erstellung."
+  },
+  "errorApiKeyUploadUnsupportedVersion": {
+    "message": "Diese Blombooru-Version ($1$) unterstützt keine Uploads per API-Schlüssel. Aktualisieren Sie auf v1.40.0 oder neuer.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.39.0"
+      }
+    }
   },
   "errorUnexpectedStatus": {
     "message": "Server antwortete mit $1$. Dies ist möglicherweise keine Blombooru-Instanz.",
@@ -123,7 +138,10 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Upload fehlgeschlagen: Authentifizierung erforderlich. Prüfen Sie den API-Schlüssel in den Erweiterungseinstellungen."
+    "message": "Upload fehlgeschlagen: Authentifizierung erforderlich. Prüfen Sie den API-Schlüssel und ob Blombooru v1.40.0 oder neuer ist."
+  },
+  "errorUploadHostPermission": {
+    "message": "Upload abgebrochen: Erlauben Sie den Zugriff auf Ihren Blombooru-Server, wenn Sie dazu aufgefordert werden."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload fehlgeschlagen: Methode nicht erlaubt. Prüfen Sie die Blombooru-Basis-URL."
