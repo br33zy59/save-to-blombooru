@@ -8,8 +8,20 @@
     "description": "Descripción de la extensión"
   },
   "browserActionTitle": {
-    "message": "Ajustes del cargador de Blombooru",
+    "message": "Save to Blombooru",
     "description": "Información emergente del botón de la barra de herramientas"
+  },
+  "popupOpenSettings": {
+    "message": "Ajustes"
+  },
+  "popupServersHeading": {
+    "message": "Sus servidores Blombooru"
+  },
+  "popupNoServers": {
+    "message": "No hay servidores configurados. Abra Ajustes para añadir uno."
+  },
+  "popupPageMediaHeading": {
+    "message": "Medios en esta página"
   },
   "headingServerDetails": {
     "message": "Detalles del servidor"

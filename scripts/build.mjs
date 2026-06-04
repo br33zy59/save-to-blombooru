@@ -21,6 +21,8 @@ const SHARED_FILES = [
   "media-context.js",
   "options.js",
   "options.html",
+  "popup.js",
+  "popup.html",
   "icon.png"
 ];
 

@@ -8,8 +8,20 @@
     "description": "Extension description"
   },
   "browserActionTitle": {
-    "message": "Blombooru Uploader settings",
+    "message": "Save to Blombooru",
     "description": "Toolbar button tooltip"
+  },
+  "popupOpenSettings": {
+    "message": "Settings"
+  },
+  "popupServersHeading": {
+    "message": "Your Blombooru servers"
+  },
+  "popupNoServers": {
+    "message": "No servers configured yet. Open Settings to add one."
+  },
+  "popupPageMediaHeading": {
+    "message": "Media on this page"
   },
   "headingServerDetails": {
     "message": "Server Details"

@@ -482,8 +482,4 @@ async function performUpload(data) {
   }
 }
 
-toolbarAction.onClicked.addListener(() => {
-  browser.runtime.openOptionsPage();
-});
-
 updateContextMenus();

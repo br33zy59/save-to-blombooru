@@ -8,8 +8,20 @@
     "description": "Erweiterungsbeschreibung"
   },
   "browserActionTitle": {
-    "message": "Blombooru-Uploader-Einstellungen",
+    "message": "Save to Blombooru",
     "description": "Tooltip der Symbolleistenschaltfläche"
+  },
+  "popupOpenSettings": {
+    "message": "Einstellungen"
+  },
+  "popupServersHeading": {
+    "message": "Ihre Blombooru-Server"
+  },
+  "popupNoServers": {
+    "message": "Noch keine Server konfiguriert. Öffnen Sie die Einstellungen, um einen hinzuzufügen."
+  },
+  "popupPageMediaHeading": {
+    "message": "Medien auf dieser Seite"
   },
   "headingServerDetails": {
     "message": "Serverdetails"

@@ -22,7 +22,8 @@
 
   "action": {
     "default_icon": "icon.png",
-    "default_title": "__MSG_browserActionTitle__"
+    "default_title": "__MSG_browserActionTitle__",
+    "default_popup": "popup.html"
   },
 
   "options_ui": {

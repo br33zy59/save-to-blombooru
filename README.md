@@ -97,6 +97,7 @@ save-to-blombooru/
 ├── permissions.js         # Optional host permission helper
 ├── media-context.js       # Caption extraction (injected)
 ├── options.html / options.js
+├── popup.html / popup.js   # Toolbar menu (servers + settings; page media table TBD)
 ├── scripts/build.mjs
 ├── _locales/              # en, de, fr, es, pt_BR
 └── icon.png

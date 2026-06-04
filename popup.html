@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="color-scheme" content="light dark">
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-width: 280px;
+      max-width: 420px;
+      background: Canvas;
+      color: CanvasText;
+      font: message-box;
+      font-size: 13px;
+    }
+
+    .popup {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      padding: 0;
+    }
+
+    .popup-section {
+      padding: 10px 12px;
+      border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+    }
+
+    .popup-section:last-child {
+      border-bottom: none;
+    }
+
+    .popup-section-title {
+      margin: 0 0 8px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: GrayText;
+    }
+
+    .settings-button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      margin: 0;
+      padding: 8px 10px;
+      border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+      border-radius: 6px;
+      background: Field;
+      color: FieldText;
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .settings-button:hover {
+      background: color-mix(in srgb, CanvasText 6%, Field);
+    }
+
+    .settings-button img {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+    }
+
+    .server-links {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .server-links li + li {
+      margin-top: 4px;
+    }
+
+    .server-links a {
+      display: block;
+      padding: 6px 8px;
+      border-radius: 4px;
+      color: LinkText;
+      text-decoration: none;
+      word-break: break-all;
+    }
+
+    .server-links a:hover {
+      background: color-mix(in srgb, CanvasText 8%, transparent);
+      text-decoration: underline;
+    }
+
+    .popup-empty {
+      margin: 0;
+      color: GrayText;
+      font-size: 12px;
+    }
+
+    /* Reserved for page media table (populated later). */
+    .page-media-host {
+      min-height: 0;
+      overflow: auto;
+      max-height: 240px;
+    }
+
+    .page-media-host:empty {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="popup">
+    <section class="popup-section popup-actions">
+      <button type="button" id="openSettings" class="settings-button">
+        <img src="icon.png" alt="">
+        <span data-i18n="popupOpenSettings"></span>
+      </button>
+    </section>
+
+    <section class="popup-section popup-servers" aria-labelledby="serversHeading">
+      <h2 id="serversHeading" class="popup-section-title" data-i18n="popupServersHeading"></h2>
+      <ul id="serverLinks" class="server-links" hidden></ul>
+      <p id="noServers" class="popup-empty" data-i18n="popupNoServers" hidden></p>
+    </section>
+
+    <section
+      class="popup-section popup-page-media"
+      id="pageMediaSection"
+      aria-labelledby="pageMediaHeading"
+      hidden
+    >
+      <h2 id="pageMediaHeading" class="popup-section-title" data-i18n="popupPageMediaHeading"></h2>
+      <div id="pageMediaHost" class="page-media-host"></div>
+    </section>
+  </div>
+
+  <script src="browser.js"></script>
+  <script src="servers.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
