@@ -58,8 +58,10 @@ You need to build/stage before you can load the extension. You'll need **node** 
     node scripts/build.mjs chrome
     ```
 
-2. Open `chrome://extensions`, enable **Developer mode**.
-3. **Load unpacked** → select `build/staging-chrome`.
+2. Open `chrome://extensions` (or `edge://extensions` in Edge), enable **Developer mode**.
+3. **Load unpacked** → select `build/staging-chrome` (not the repo root).
+
+After changing popup or background code, run `node scripts/build.mjs chrome` again and click **Reload** on the extension card.
 
 Note: Temporary extension loads like these do not persist across browser restarts.
 
@@ -97,7 +99,8 @@ save-to-blombooru/
 ├── permissions.js         # Optional host permission helper
 ├── media-context.js       # Caption extraction (injected)
 ├── options.html / options.js
-├── popup.html / popup.js   # Toolbar menu (servers + settings; page media table TBD)
+├── popup.html / popup.js   # Toolbar menu (settings, server links, page media gallery)
+├── tab-scripting.js        # Shared tab script injection helper
 ├── scripts/build.mjs
 ├── _locales/              # en, de, fr, es, pt_BR
 └── icon.png

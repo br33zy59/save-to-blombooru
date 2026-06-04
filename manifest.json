@@ -18,6 +18,7 @@
     "contextMenus",
     "storage",
     "tabs",
+    "scripting",
     "<all_urls>",
     "notifications"
   ],
@@ -31,6 +32,7 @@
     "scripts": [
       "browser.js",
       "permissions.js",
+      "tab-scripting.js",
       "servers.js",
       "auth.js",
       "media-context.js",

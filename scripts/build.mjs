@@ -15,6 +15,7 @@ const buildDir = join(root, "build");
 const SHARED_FILES = [
   "browser.js",
   "permissions.js",
+  "tab-scripting.js",
   "background.js",
   "auth.js",
   "servers.js",

@@ -80,29 +80,6 @@ function finishUpload(outcome) {
   clearToolbarBadgeSoon();
 }
 
-function getServerOrigin(booruUrl) {
-  if (!booruUrl) {
-    return null;
-  }
-
-  try {
-    return new URL(booruUrl.trim()).origin;
-  } catch (e) {
-    return null;
-  }
-}
-
-function isSameServerOrigin(pageUrl, booruUrl) {
-  const pageOrigin = getServerOrigin(pageUrl);
-  const serverOrigin = getServerOrigin(booruUrl);
-
-  if (!pageOrigin || !serverOrigin) {
-    return false;
-  }
-
-  return pageOrigin === serverOrigin;
-}
-
 function formatCapturedOn() {
   const formatted = new Date().toLocaleString(undefined, {
     year: "numeric",
@@ -126,23 +103,6 @@ function buildUploadDescription(captionText) {
   }
 
   return capturedLine;
-}
-
-async function runInTab(tabId, func, args) {
-  if (browser.scripting?.executeScript) {
-    const results = await browser.scripting.executeScript({
-      target: { tabId },
-      func,
-      args
-    });
-    return results?.[0]?.result;
-  }
-
-  const results = await browser.tabs.executeScript(tabId, {
-    func,
-    args
-  });
-  return results?.[0];
 }
 
 async function captureMediaCaption(tabId, srcUrl) {
@@ -221,38 +181,15 @@ async function resolveMediaBlob(tabId, srcUrl, requestPermission) {
   throw new Error(browser.i18n.getMessage("errorDownloadFailed", "0"));
 }
 
-function getConfiguredServers(servers) {
-  return (servers || []).filter((entry) => entry && entry.id && entry.booruUrl);
-}
-
-function getMenuTitle(server, configuredServers) {
-  const name = (server.serverName || "").trim();
-
-  if (name) {
-    return browser.i18n.getMessage("contextMenuWithName", name);
-  }
-
-  if (configuredServers.length <= 1) {
-    return browser.i18n.getMessage("contextMenuBase");
-  }
-
-  try {
-    const host = new URL(server.booruUrl).host;
-    return browser.i18n.getMessage("contextMenuWithHost", host);
-  } catch (e) {
-    return browser.i18n.getMessage("contextMenuBase");
-  }
-}
-
-browser.contextMenus.onClicked.addListener(async (info) => {
+async function saveMediaToBlombooru({ tabId, pageUrl, srcUrl, serverId }) {
   const servers = await getServersFromStorage();
-  const server = findServerById(servers, info.menuItemId);
+  const server = findServerById(servers, serverId);
 
   if (!server || !server.booruUrl) {
     return;
   }
 
-  if (isSameServerOrigin(info.pageUrl, server.booruUrl)) {
+  if (pageUrl && isSameServerOrigin(pageUrl, server.booruUrl)) {
     return;
   }
 
@@ -269,13 +206,13 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     return;
   }
 
-  const filename = info.srcUrl.split("/").pop() || "upload.bin";
-  const caption = await captureMediaCaption(info.tabId, info.srcUrl);
+  const filename = srcUrl.split("/").pop() || "upload.bin";
+  const caption = await captureMediaCaption(tabId, srcUrl);
   const description = buildUploadDescription(caption);
 
   let mediaBlob;
   try {
-    mediaBlob = await resolveMediaBlob(info.tabId, info.srcUrl, true);
+    mediaBlob = await resolveMediaBlob(tabId, srcUrl, true);
   } catch (err) {
     browser.notifications.create({
       type: "basic",
@@ -286,13 +223,85 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     return;
   }
 
-  performUpload({
+  await performUpload({
     mediaBlob,
     filename,
-    source: info.srcUrl,
+    source: srcUrl,
     description,
     serverId: server.id
   });
+}
+
+const contextMenuMediaCache = new Map();
+
+function contextMenuMediaCacheKey(tabId, srcUrl) {
+  return `${tabId}:${srcUrl}`;
+}
+
+async function resolveContextMenuMedia(tabId, srcUrl) {
+  if (!srcUrl || tabId < 0) {
+    return {
+      displayUrl: srcUrl,
+      uploadUrl: srcUrl,
+      fullUrlAvailable: false
+    };
+  }
+
+  const cacheKey = contextMenuMediaCacheKey(tabId, srcUrl);
+  const cached = contextMenuMediaCache.get(cacheKey);
+
+  if (cached) {
+    return cached;
+  }
+
+  try {
+    const resolved = await runInTab(tabId, enumeratePageMediaInPage, [srcUrl]);
+
+    if (resolved?.displayUrl) {
+      contextMenuMediaCache.set(cacheKey, resolved);
+      return resolved;
+    }
+  } catch (e) {
+    console.warn("Context menu media resolve failed:", e);
+  }
+
+  return {
+    displayUrl: srcUrl,
+    uploadUrl: srcUrl,
+    fullUrlAvailable: false
+  };
+}
+
+function uploadSrcUrlForContextMenuChoice(resolution, variant, fallbackSrcUrl) {
+  if (variant === "full" && resolution.fullUrlAvailable) {
+    return resolution.uploadUrl || fallbackSrcUrl;
+  }
+
+  return resolution.displayUrl || fallbackSrcUrl;
+}
+
+browser.contextMenus.onClicked.addListener(async (info) => {
+  const { serverId, variant } = parseContextMenuItemId(info.menuItemId);
+  const resolution = await resolveContextMenuMedia(info.tabId, info.srcUrl);
+
+  await saveMediaToBlombooru({
+    tabId: info.tabId,
+    pageUrl: info.pageUrl,
+    srcUrl: uploadSrcUrlForContextMenuChoice(resolution, variant, info.srcUrl),
+    serverId
+  });
+});
+
+browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== "saveMediaToBlombooru") {
+    return undefined;
+  }
+
+  saveMediaToBlombooru(message.payload)
+    .then(() => sendResponse({ ok: true }))
+    .catch((err) => sendResponse({ ok: false, error: err.message }));
+
+  return true;
 });
 
 browser.storage.onChanged.addListener((changes, area) => {
@@ -327,10 +336,73 @@ async function updateContextMenus(pageUrl = null) {
 
     browser.contextMenus.create({
       id: server.id,
-      title: getMenuTitle(server, servers),
+      title: getServerMenuTitle(server, servers, "default"),
       contexts: ["image", "video"]
     });
+
+    browser.contextMenus.create({
+      id: getContextMenuFullItemId(server.id),
+      title: getServerMenuTitle(server, servers, "full"),
+      contexts: ["image", "video"],
+      visible: false
+    });
   }
+}
+
+async function refreshContextMenusForMedia(info, tab) {
+  if (!info.srcUrl || tab?.id == null) {
+    return;
+  }
+
+  const hasMediaContext =
+    info.contexts?.includes("image") || info.contexts?.includes("video");
+
+  if (!hasMediaContext) {
+    return;
+  }
+
+  const resolvedPageUrl = info.pageUrl || tab.url || null;
+  const servers = getConfiguredServers(await getServersFromStorage()).filter(
+    (server) => !resolvedPageUrl || !isSameServerOrigin(resolvedPageUrl, server.booruUrl)
+  );
+
+  const resolution = await resolveContextMenuMedia(tab.id, info.srcUrl);
+  const showFullChoice = Boolean(resolution.fullUrlAvailable);
+  const displayVariant = showFullChoice ? "thumbnail" : "default";
+
+  for (const server of servers) {
+    const fullItemId = getContextMenuFullItemId(server.id);
+
+    try {
+      await browser.contextMenus.update(server.id, {
+        title: getServerMenuTitle(server, servers, displayVariant),
+        visible: true
+      });
+    } catch (e) {
+      // Item may not exist if server was removed mid-menu.
+    }
+
+    try {
+      await browser.contextMenus.update(fullItemId, {
+        title: getServerMenuTitle(server, servers, "full"),
+        visible: showFullChoice
+      });
+    } catch (e) {
+      // Hidden full item may not exist yet.
+    }
+  }
+
+  if (browser.contextMenus.refresh) {
+    await browser.contextMenus.refresh();
+  }
+}
+
+if (browser.contextMenus.onShown) {
+  browser.contextMenus.onShown.addListener((info, tab) => {
+    refreshContextMenusForMedia(info, tab).catch((err) => {
+      console.warn("Context menu refresh failed:", err);
+    });
+  });
 }
 
 async function syncContextMenuVisibilityForPageUrl(pageUrl) {
@@ -354,7 +426,21 @@ browser.tabs.onActivated.addListener((activeInfo) => {
   syncContextMenuVisibilityForTab(activeInfo.tabId);
 });
 
+function clearContextMenuMediaCacheForTab(tabId) {
+  const prefix = `${tabId}:`;
+
+  for (const key of contextMenuMediaCache.keys()) {
+    if (key.startsWith(prefix)) {
+      contextMenuMediaCache.delete(key);
+    }
+  }
+}
+
 browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.url) {
+    clearContextMenuMediaCacheForTab(tabId);
+  }
+
   if (!changeInfo.url && changeInfo.status !== "complete") {
     return;
   }

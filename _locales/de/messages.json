@@ -20,8 +20,29 @@
   "popupNoServers": {
     "message": "Noch keine Server konfiguriert. Öffnen Sie die Einstellungen, um einen hinzuzufügen."
   },
+  "popupGalleryNoUploadTargets": {
+    "message": "Sie sind bereits auf diesem Blombooru. Besuchen Sie eine andere Website, um Medien zu speichern, oder fügen Sie in den Einstellungen einen weiteren Server hinzu."
+  },
+  "popupGalleryServerOnPage": {
+    "message": "Speichern ist auf diesem Blombooru nicht möglich — nutzen Sie eine andere Website oder den Rechtsklick auf Medien woanders."
+  },
   "popupPageMediaHeading": {
     "message": "Medien auf dieser Seite"
+  },
+  "popupPageMediaLoading": {
+    "message": "Seite wird durchsucht…"
+  },
+  "popupNoPageMedia": {
+    "message": "Keine Bilder oder Videos auf dieser Seite gefunden."
+  },
+  "popupPageMediaUnavailable": {
+    "message": "Diese Seite kann nicht durchsucht werden."
+  },
+  "popupChoiceThumbnail": {
+    "message": "Vorschaubild"
+  },
+  "popupChoiceFull": {
+    "message": "Vollbild"
   },
   "headingServerDetails": {
     "message": "Serverdetails"
@@ -142,6 +163,48 @@
   },
   "contextMenuWithHost": {
     "message": "Auf Blombooru speichern ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "booru.example.com"
+      }
+    }
+  },
+  "contextMenuThumbnailBase": {
+    "message": "Vorschaubild auf Blombooru speichern"
+  },
+  "contextMenuThumbnailWithName": {
+    "message": "Vorschaubild auf $1$ speichern",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Home"
+      }
+    }
+  },
+  "contextMenuThumbnailWithHost": {
+    "message": "Vorschaubild auf Blombooru speichern ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "booru.example.com"
+      }
+    }
+  },
+  "contextMenuFullBase": {
+    "message": "Vollbild auf Blombooru speichern"
+  },
+  "contextMenuFullWithName": {
+    "message": "Vollbild auf $1$ speichern",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Home"
+      }
+    }
+  },
+  "contextMenuFullWithHost": {
+    "message": "Vollbild auf Blombooru speichern ($1$)",
     "placeholders": {
       "1": {
         "content": "$1",

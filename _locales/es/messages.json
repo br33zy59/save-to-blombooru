@@ -20,8 +20,29 @@
   "popupNoServers": {
     "message": "No hay servidores configurados. Abra Ajustes para añadir uno."
   },
+  "popupGalleryNoUploadTargets": {
+    "message": "Ya está en este Blombooru. Visite otro sitio para guardar medios aquí, o añada otro servidor en Ajustes."
+  },
+  "popupGalleryServerOnPage": {
+    "message": "No se puede guardar mientras está en este Blombooru — use otro sitio o el clic derecho en medios en otra página."
+  },
   "popupPageMediaHeading": {
     "message": "Medios en esta página"
+  },
+  "popupPageMediaLoading": {
+    "message": "Buscando en esta página…"
+  },
+  "popupNoPageMedia": {
+    "message": "No se encontraron imágenes ni vídeos en esta página."
+  },
+  "popupPageMediaUnavailable": {
+    "message": "No se puede analizar esta página."
+  },
+  "popupChoiceThumbnail": {
+    "message": "Miniatura"
+  },
+  "popupChoiceFull": {
+    "message": "Imagen completa"
   },
   "headingServerDetails": {
     "message": "Detalles del servidor"
@@ -142,6 +163,48 @@
   },
   "contextMenuWithHost": {
     "message": "Guardar en Blombooru ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "booru.example.com"
+      }
+    }
+  },
+  "contextMenuThumbnailBase": {
+    "message": "Guardar miniatura en Blombooru"
+  },
+  "contextMenuThumbnailWithName": {
+    "message": "Guardar miniatura en $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Home"
+      }
+    }
+  },
+  "contextMenuThumbnailWithHost": {
+    "message": "Guardar miniatura en Blombooru ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "booru.example.com"
+      }
+    }
+  },
+  "contextMenuFullBase": {
+    "message": "Guardar imagen completa en Blombooru"
+  },
+  "contextMenuFullWithName": {
+    "message": "Guardar imagen completa en $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Home"
+      }
+    }
+  },
+  "contextMenuFullWithHost": {
+    "message": "Guardar imagen completa en Blombooru ($1$)",
     "placeholders": {
       "1": {
         "content": "$1",

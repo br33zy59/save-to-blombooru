@@ -27,6 +27,106 @@ function findServerById(servers, serverId) {
   return servers.find((entry) => entry.id === serverId);
 }
 
+function getConfiguredServers(servers) {
+  return (servers || []).filter((entry) => entry && entry.id && entry.booruUrl);
+}
+
+function getServerOrigin(booruUrl) {
+  if (!booruUrl) {
+    return null;
+  }
+
+  try {
+    return new URL(booruUrl.trim()).origin;
+  } catch (e) {
+    return null;
+  }
+}
+
+function isSameServerOrigin(pageUrl, booruUrl) {
+  const pageOrigin = getServerOrigin(pageUrl);
+  const serverOrigin = getServerOrigin(booruUrl);
+
+  if (!pageOrigin || !serverOrigin) {
+    return false;
+  }
+
+  return pageOrigin === serverOrigin;
+}
+
+/** Split configured servers into upload targets vs same-origin as the active page. */
+function partitionServersForPage(pageUrl, servers) {
+  const configured = getConfiguredServers(servers);
+  const available = [];
+  const onPage = [];
+
+  for (const server of configured) {
+    if (pageUrl && isSameServerOrigin(pageUrl, server.booruUrl)) {
+      onPage.push(server);
+    } else {
+      available.push(server);
+    }
+  }
+
+  return { configured, available, onPage };
+}
+
+function getServerMenuTitle(server, configuredServers, variant = "default") {
+  const name = (server.serverName || "").trim();
+  const multiple = configuredServers.length > 1;
+
+  const keys =
+    variant === "full"
+      ? {
+          withName: "contextMenuFullWithName",
+          withHost: "contextMenuFullWithHost",
+          base: "contextMenuFullBase"
+        }
+      : variant === "thumbnail"
+        ? {
+            withName: "contextMenuThumbnailWithName",
+            withHost: "contextMenuThumbnailWithHost",
+            base: "contextMenuThumbnailBase"
+          }
+        : {
+            withName: "contextMenuWithName",
+            withHost: "contextMenuWithHost",
+            base: "contextMenuBase"
+          };
+
+  if (name) {
+    return browser.i18n.getMessage(keys.withName, name);
+  }
+
+  if (!multiple) {
+    return browser.i18n.getMessage(keys.base);
+  }
+
+  try {
+    const host = new URL(server.booruUrl).host;
+    return browser.i18n.getMessage(keys.withHost, host);
+  } catch (e) {
+    return browser.i18n.getMessage(keys.base);
+  }
+}
+
+const CONTEXT_MENU_FULL_SUFFIX = ":full";
+
+function getContextMenuFullItemId(serverId) {
+  return `${serverId}${CONTEXT_MENU_FULL_SUFFIX}`;
+}
+
+function parseContextMenuItemId(menuItemId) {
+  if (menuItemId.endsWith(CONTEXT_MENU_FULL_SUFFIX)) {
+    return {
+      serverId: menuItemId.slice(0, -CONTEXT_MENU_FULL_SUFFIX.length),
+      variant: "full"
+    };
+  }
+
+  return { serverId: menuItemId, variant: "display" };
+}
+
 function normalizeBooruBaseUrl(urlString) {
   return urlString.trim().replace(/\/$/, "");
 }

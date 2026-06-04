@@ -1,149 +1,843 @@
 <!DOCTYPE html>
+
 <html>
+
 <head>
+
   <meta charset="utf-8">
+
   <meta name="color-scheme" content="light dark">
+
   <style>
+
     :root {
+
       color-scheme: light dark;
+
     }
+
+
 
     * {
+
       box-sizing: border-box;
+
     }
+
+
 
     html,
+
     body {
+
       margin: 0;
-      min-width: 280px;
-      max-width: 420px;
+
+      width: 760px;
+
+      min-width: 760px;
+
+      max-width: 800px;
+
+      overflow-x: hidden;
+
+      overflow-y: auto;
+
       background: Canvas;
+
       color: CanvasText;
+
       font: message-box;
+
       font-size: 13px;
+
     }
+
+
+
+    .popup-shell {
+
+      display: flex;
+
+      flex-direction: row;
+
+      align-items: stretch;
+
+      min-height: 100%;
+
+    }
+
+
+
+    .gallery-hover-preview-pane {
+
+      flex: 0 0 360px;
+
+      width: 360px;
+
+      padding: 10px;
+
+      border-right: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+
+      display: flex;
+
+      align-items: center;
+
+      justify-content: center;
+
+      align-self: stretch;
+
+    }
+
+
+
+    .gallery-hover-preview {
+
+      display: none;
+
+      flex-direction: column;
+
+      align-items: center;
+
+      justify-content: center;
+
+      width: 100%;
+
+      max-height: 580px;
+
+    }
+
+
+
+    .gallery-hover-preview--visible {
+
+      display: flex;
+
+    }
+
+
+
+    .gallery-hover-preview__frame {
+
+      display: flex;
+
+      align-items: center;
+
+      justify-content: center;
+
+      width: 100%;
+
+      overflow: hidden;
+
+      border-radius: 6px;
+
+      background: color-mix(in srgb, CanvasText 6%, Canvas);
+
+    }
+
+
+
+    .gallery-hover-preview__img {
+
+      display: block;
+
+      max-width: 100%;
+
+      width: auto;
+
+      height: auto;
+
+      object-fit: contain;
+
+      object-position: center;
+
+    }
+
+
+
+    .gallery-hover-preview__img--broken {
+
+      opacity: 0.35;
+
+    }
+
+
+
+    .popup-main {
+
+      flex: 1 1 auto;
+
+      min-width: 0;
+
+      display: flex;
+
+      flex-direction: column;
+
+    }
+
+
 
     .popup {
+
       display: flex;
+
       flex-direction: column;
+
       gap: 0;
+
       padding: 0;
+
     }
+
+
 
     .popup-section {
+
       padding: 10px 12px;
+
       border-bottom: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+
     }
+
+
 
     .popup-section:last-child {
+
       border-bottom: none;
+
     }
+
+
 
     .popup-section-title {
+
       margin: 0 0 8px;
+
       font-size: 11px;
+
       font-weight: 600;
+
       text-transform: uppercase;
+
       letter-spacing: 0.03em;
+
       color: GrayText;
+
     }
+
+
 
     .settings-button {
+
       display: flex;
+
       align-items: center;
+
       gap: 10px;
+
       width: 100%;
+
       margin: 0;
+
       padding: 8px 10px;
+
       border: 1px solid color-mix(in srgb, CanvasText 18%, transparent);
+
       border-radius: 6px;
+
       background: Field;
+
       color: FieldText;
+
       font: inherit;
+
       text-align: left;
+
       cursor: pointer;
+
     }
+
+
 
     .settings-button:hover {
+
       background: color-mix(in srgb, CanvasText 6%, Field);
+
     }
+
+
 
     .settings-button img {
+
       flex-shrink: 0;
+
       width: 24px;
+
       height: 24px;
+
     }
+
+
 
     .server-links {
+
       margin: 0;
+
       padding: 0;
+
       list-style: none;
+
     }
+
+
 
     .server-links li + li {
+
       margin-top: 4px;
+
     }
+
+
 
     .server-links a {
+
       display: block;
+
       padding: 6px 8px;
+
       border-radius: 4px;
+
       color: LinkText;
+
       text-decoration: none;
+
       word-break: break-all;
+
     }
+
+
 
     .server-links a:hover {
+
       background: color-mix(in srgb, CanvasText 8%, transparent);
+
       text-decoration: underline;
+
     }
+
+
 
     .popup-empty {
+
       margin: 0;
+
       color: GrayText;
+
       font-size: 12px;
+
     }
 
-    /* Reserved for page media table (populated later). */
+
+
+    .popup-page-media {
+
+      overflow: visible;
+
+    }
+
+
+
     .page-media-host {
-      min-height: 0;
+
       overflow: auto;
-      max-height: 240px;
+
+      max-height: 360px;
+
     }
 
-    .page-media-host:empty {
+
+
+    .page-media-grid {
+
+      display: grid;
+
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+
+      gap: 10px;
+
+    }
+
+
+
+    .media-cell {
+
+      position: relative;
+
+      display: flex;
+
+      flex-direction: column;
+
+      align-items: stretch;
+
+      min-width: 0;
+
+      padding: 4px;
+
+      border: 1px solid color-mix(in srgb, CanvasText 14%, transparent);
+
+      border-radius: 6px;
+
+      background: color-mix(in srgb, CanvasText 4%, Canvas);
+
+      cursor: pointer;
+
+    }
+
+
+
+    .media-cell--has-full .media-thumb-wrap::before {
+
+      content: "";
+
+      position: absolute;
+
+      top: 4px;
+
+      left: 4px;
+
+      z-index: 2;
+
+      width: 7px;
+
+      height: 7px;
+
+      border-radius: 50%;
+
+      background: LinkText;
+
+      box-shadow: 0 0 0 1px Canvas;
+
+      pointer-events: none;
+
+    }
+
+
+
+    .media-thumb-wrap {
+
+      position: relative;
+
+      display: flex;
+
+      align-items: center;
+
+      justify-content: center;
+
+      width: 100%;
+
+      min-height: 88px;
+
+      height: 88px;
+
+      overflow: hidden;
+
+      border-radius: 4px;
+
+      background: color-mix(in srgb, CanvasText 8%, transparent);
+
+    }
+
+
+
+    .media-choice-overlay {
+
+      position: absolute;
+
+      inset: 0;
+
+      z-index: 3;
+
       display: none;
+
+      flex-direction: row;
+
+      align-items: stretch;
+
+      background: color-mix(in srgb, #000 52%, transparent);
+
+      color: #fff;
+
+      border-radius: 4px;
+
     }
+
+
+
+    .media-cell--has-full:hover .media-choice-overlay,
+
+    .media-cell--has-full:focus-within .media-choice-overlay,
+
+    .media-cell--has-full.media-cell--show-choice .media-choice-overlay {
+
+      display: flex;
+
+    }
+
+
+
+    .media-choice-half {
+
+      flex: 1;
+
+      display: flex;
+
+      align-items: center;
+
+      justify-content: center;
+
+      min-width: 0;
+
+      padding: 6px 4px;
+
+      border: none;
+
+      background: transparent;
+
+      color: inherit;
+
+      font: inherit;
+
+      font-size: 10px;
+
+      line-height: 1.15;
+
+      text-align: center;
+
+      white-space: nowrap;
+
+      cursor: pointer;
+
+    }
+
+
+
+    .media-choice-half:hover,
+
+    .media-choice-half:focus-visible {
+
+      background: color-mix(in srgb, #fff 18%, transparent);
+
+      outline: none;
+
+    }
+
+
+
+    .media-choice-divider {
+
+      flex-shrink: 0;
+
+      width: 1px;
+
+      background: color-mix(in srgb, #fff 45%, transparent);
+
+    }
+
+
+
+    .media-thumb {
+
+      display: block;
+
+      max-width: 100%;
+
+      max-height: 88px;
+
+      width: auto;
+
+      height: auto;
+
+      object-fit: scale-down;
+
+    }
+
+
+
+    .media-thumb--broken {
+
+      opacity: 0.35;
+
+    }
+
+
+
+    .media-kind-badge {
+
+      position: absolute;
+
+      right: 3px;
+
+      bottom: 3px;
+
+      padding: 0 4px;
+
+      border-radius: 3px;
+
+      background: color-mix(in srgb, Canvas 70%, CanvasText);
+
+      font-size: 10px;
+
+      line-height: 1.3;
+
+    }
+
+
+
+    .media-filename {
+
+      margin-top: 4px;
+
+      font-size: 10px;
+
+      line-height: 1.25;
+
+      text-align: center;
+
+      word-break: break-all;
+
+      color: GrayText;
+
+    }
+
+
+
+    /* Anchored to .media-cell (not position:fixed — clipped in Chromium extension popups). */
+
+    .gallery-server-menu {
+
+      position: absolute;
+
+      left: 0;
+
+      top: 100%;
+
+      z-index: 200;
+
+      width: max-content;
+
+      min-width: 100%;
+
+      max-width: min(360px, calc(100vw - 24px));
+
+      margin: 4px 0 0;
+
+      padding: 4px;
+
+      border: 1px solid color-mix(in srgb, CanvasText 20%, transparent);
+
+      border-radius: 6px;
+
+      background: Canvas;
+
+      color: CanvasText;
+
+      box-shadow: 0 4px 16px color-mix(in srgb, CanvasText 25%, transparent);
+
+    }
+
+
+
+    .gallery-server-menu.gallery-server-menu--above {
+
+      top: auto;
+
+      bottom: 100%;
+
+      margin: 0 0 4px;
+
+    }
+
+
+
+    .gallery-server-menu[hidden] {
+
+      display: none !important;
+
+    }
+
+
+
+    .gallery-server-menu:not([hidden]) {
+
+      display: block;
+
+    }
+
+
+
+    .gallery-server-menu-item {
+
+      display: block;
+
+      width: 100%;
+
+      margin: 0;
+
+      padding: 8px 10px;
+
+      border: none;
+
+      border-radius: 4px;
+
+      background: transparent;
+
+      color: inherit;
+
+      font: inherit;
+
+      font-size: 12px;
+
+      text-align: left;
+
+      cursor: pointer;
+
+      white-space: nowrap;
+
+    }
+
+
+
+    .gallery-server-menu-item:hover,
+
+    .gallery-server-menu-item:focus-visible {
+
+      background: color-mix(in srgb, CanvasText 10%, transparent);
+
+      outline: none;
+
+    }
+
+
+
+    .gallery-server-menu-item--on-page,
+
+    .gallery-server-menu-item--on-page:disabled {
+
+      color: GrayText;
+
+      text-decoration: line-through;
+
+      cursor: not-allowed;
+
+      opacity: 0.85;
+
+    }
+
+
+
+    .gallery-server-menu-item--on-page:hover,
+
+    .gallery-server-menu-item--on-page:focus-visible {
+
+      background: transparent;
+
+    }
+
   </style>
+
 </head>
+
 <body>
-  <div class="popup">
-    <section class="popup-section popup-actions">
-      <button type="button" id="openSettings" class="settings-button">
-        <img src="icon.png" alt="">
-        <span data-i18n="popupOpenSettings"></span>
-      </button>
-    </section>
 
-    <section class="popup-section popup-servers" aria-labelledby="serversHeading">
-      <h2 id="serversHeading" class="popup-section-title" data-i18n="popupServersHeading"></h2>
-      <ul id="serverLinks" class="server-links" hidden></ul>
-      <p id="noServers" class="popup-empty" data-i18n="popupNoServers" hidden></p>
-    </section>
+  <div class="popup-shell">
 
-    <section
-      class="popup-section popup-page-media"
-      id="pageMediaSection"
-      aria-labelledby="pageMediaHeading"
-      hidden
+    <aside
+
+      id="galleryHoverPreviewPane"
+
+      class="gallery-hover-preview-pane"
+
+      aria-label="Image preview"
+
+      aria-hidden="true"
+
     >
-      <h2 id="pageMediaHeading" class="popup-section-title" data-i18n="popupPageMediaHeading"></h2>
-      <div id="pageMediaHost" class="page-media-host"></div>
-    </section>
+      <div id="galleryHoverPreview" class="gallery-hover-preview" hidden aria-hidden="true">
+        <div id="galleryHoverPreviewFrame" class="gallery-hover-preview__frame">
+          <img id="galleryHoverPreviewImg" class="gallery-hover-preview__img" alt="" decoding="async">
+        </div>
+      </div>
+    </aside>
+
+    <div class="popup-main">
+
+      <div class="popup">
+
+        <section class="popup-section popup-actions">
+
+          <button type="button" id="openSettings" class="settings-button">
+
+            <img src="icon.png" alt="">
+
+            <span data-i18n="popupOpenSettings"></span>
+
+          </button>
+
+        </section>
+
+
+
+        <section class="popup-section popup-servers" aria-labelledby="serversHeading">
+
+          <h2 id="serversHeading" class="popup-section-title" data-i18n="popupServersHeading"></h2>
+
+          <ul id="serverLinks" class="server-links" hidden></ul>
+
+          <p id="noServers" class="popup-empty" data-i18n="popupNoServers" hidden></p>
+
+        </section>
+
+
+
+        <section
+
+          class="popup-section popup-page-media"
+
+          id="pageMediaSection"
+
+          aria-labelledby="pageMediaHeading"
+
+        >
+
+          <h2 id="pageMediaHeading" class="popup-section-title" data-i18n="popupPageMediaHeading"></h2>
+
+          <p id="pageMediaStatus" class="popup-empty" hidden></p>
+
+          <div id="pageMediaHost" class="page-media-host"></div>
+
+        </section>
+
+      </div>
+
+    </div>
+
   </div>
 
+  <div id="galleryServerMenu" class="gallery-server-menu" role="menu" hidden></div>
+
+
+
   <script src="browser.js"></script>
+
   <script src="servers.js"></script>
+
+  <script src="tab-scripting.js"></script>
+
+  <script src="media-context.js"></script>
+
   <script src="popup.js"></script>
+
 </body>
+
 </html>
+
+

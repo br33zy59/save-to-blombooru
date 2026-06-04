@@ -20,8 +20,29 @@
   "popupNoServers": {
     "message": "No servers configured yet. Open Settings to add one."
   },
+  "popupGalleryNoUploadTargets": {
+    "message": "You're already on this Blombooru. Browse another site to save media here, or add another server in Settings."
+  },
+  "popupGalleryServerOnPage": {
+    "message": "Can't save while you're on this Blombooru — use another site or right-click media elsewhere."
+  },
   "popupPageMediaHeading": {
     "message": "Media on this page"
+  },
+  "popupPageMediaLoading": {
+    "message": "Scanning this page…"
+  },
+  "popupNoPageMedia": {
+    "message": "No images or videos found on this page."
+  },
+  "popupPageMediaUnavailable": {
+    "message": "Cannot scan this page."
+  },
+  "popupChoiceThumbnail": {
+    "message": "Thumbnail"
+  },
+  "popupChoiceFull": {
+    "message": "Full image"
   },
   "headingServerDetails": {
     "message": "Server Details"
@@ -142,6 +163,48 @@
   },
   "contextMenuWithHost": {
     "message": "Save to Blombooru ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "booru.example.com"
+      }
+    }
+  },
+  "contextMenuThumbnailBase": {
+    "message": "Save thumbnail to Blombooru"
+  },
+  "contextMenuThumbnailWithName": {
+    "message": "Save thumbnail to $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Home"
+      }
+    }
+  },
+  "contextMenuThumbnailWithHost": {
+    "message": "Save thumbnail to Blombooru ($1$)",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "booru.example.com"
+      }
+    }
+  },
+  "contextMenuFullBase": {
+    "message": "Save full image to Blombooru"
+  },
+  "contextMenuFullWithName": {
+    "message": "Save full image to $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "Home"
+      }
+    }
+  },
+  "contextMenuFullWithHost": {
+    "message": "Save full image to Blombooru ($1$)",
     "placeholders": {
       "1": {
         "content": "$1",

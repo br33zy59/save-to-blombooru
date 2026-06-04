@@ -2,6 +2,7 @@
 importScripts(
   "browser.js",
   "permissions.js",
+  "tab-scripting.js",
   "media-context.js",
   "servers.js",
   "auth.js",
