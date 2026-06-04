@@ -13,8 +13,8 @@ You'll need:
 - A working **Blombooru** installation on your LAN or reachable over the Internet.
 
 Click the appropriate extension icon below to install for your browser:
-- <addons.mozilla.org approval pending>
-- <Chrome Web Store approval pending>
+- **addons.mozilla.org approval pending**
+- **Chrome Web Store approval pending**
 
 ### Configure Blombooru
 
