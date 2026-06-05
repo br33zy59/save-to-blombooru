@@ -50,6 +50,12 @@
   "popupGalleryUpload": {
     "message": "Importer"
   },
+  "popupGalleryUploadSuccess": {
+    "message": "✓ Enregistré"
+  },
+  "popupGalleryUploadFailed": {
+    "message": "✗ Échec"
+  },
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Résolution inconnue"
   },
@@ -305,6 +311,33 @@
   },
   "errorUploadHostPermission": {
     "message": "Envoi annulé : autorisez l'accès à votre serveur Blombooru lorsque le navigateur le demande."
+  },
+  "errorUploadMediaHostPermission": {
+    "message": "Envoi annulé : autorisez l'accès à $1$ (l'hôte de cette image) lorsque le navigateur le demande.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
+  },
+  "notifyGrantMediaHostPermissionPopup": {
+    "message": "Cette image nécessite l'accès à $1$. Dans le popup de l'extension, cliquez à nouveau sur l'image et choisissez votre serveur pour autoriser l'accès.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
+  },
+  "popupMediaHostRetryPrompt": {
+    "message": "Cliquez sur l'image surlignée et choisissez à nouveau votre serveur pour autoriser l'accès à $1$.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
   },
   "errorUploadMethodNotAllowed": {
     "message": "Échec de l'envoi : méthode non autorisée. Vérifiez l'URL de base Blombooru."

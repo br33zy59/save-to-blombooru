@@ -77,6 +77,18 @@ function createServerManager(serverId, elements, onStateChange) {
 
   function setGrantAccessVisible(visible) {
     elements.grantAccessButton.hidden = !visible;
+    elements.statusBlockEl.classList.toggle(
+      "server-status-block--permission-required",
+      visible
+    );
+  }
+
+  function showPermissionRequiredPrompt() {
+    showUrlStatus(
+      browser.i18n.getMessage("statusPermissionRequired"),
+      "permission-required"
+    );
+    setGrantAccessVisible(true);
   }
 
   function canSave() {
@@ -89,9 +101,19 @@ function createServerManager(serverId, elements, onStateChange) {
     onStateChange();
   }
 
+  function applyNormalizedBooruUrlToInput() {
+    const normalized = normalizeBooruUrlInput(elements.booruUrlInput.value);
+
+    if (normalized !== elements.booruUrlInput.value.trim()) {
+      elements.booruUrlInput.value = normalized;
+    }
+
+    return normalized;
+  }
+
   async function validateConnection(requestPermission = false) {
     const requestId = ++validationRequestId;
-    const booruUrl = elements.booruUrlInput.value.trim();
+    const booruUrl = applyNormalizedBooruUrlToInput();
 
     try {
       if (!booruUrl) {
@@ -134,8 +156,7 @@ function createServerManager(serverId, elements, onStateChange) {
       if (requestId !== validationRequestId) return;
 
       if (!hasPermission) {
-        showUrlStatus(browser.i18n.getMessage("statusPermissionRequired"), "info");
-        setGrantAccessVisible(true);
+        showPermissionRequiredPrompt();
         onStateChange();
         return;
       }
@@ -176,9 +197,51 @@ function createServerManager(serverId, elements, onStateChange) {
     onStateChange();
   }
 
+  function requestHostAccessFromUserGesture() {
+    const booruUrl = applyNormalizedBooruUrlToInput();
+
+    if (!booruUrl) {
+      return;
+    }
+
+    let originPattern;
+
+    try {
+      originPattern = originPatternFromUrl(booruUrl);
+    } catch (e) {
+      return;
+    }
+
+    if (!originPattern) {
+      return;
+    }
+
+    const requests = beginHostPermissionRequests([originPattern]);
+
+    if (requests.length === 0) {
+      void validateConnection(false);
+      return;
+    }
+
+    void awaitHostPermissionRequests(requests).then((granted) => {
+      if (granted) {
+        void validateConnection(false);
+        return;
+      }
+
+      showPermissionRequiredPrompt();
+      onStateChange();
+    });
+  }
+
   function bindEvents() {
+    // Keep focus on the URL field so blur does not run validateConnection(false) first.
+    elements.grantAccessButton.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+    });
+
     elements.grantAccessButton.addEventListener("click", () => {
-      validateConnection(true);
+      requestHostAccessFromUserGesture();
     });
 
     elements.booruUrlInput.addEventListener("input", onUrlInput);
@@ -196,7 +259,7 @@ function createServerManager(serverId, elements, onStateChange) {
     return {
       id: serverId,
       serverName: elements.friendlyNameInput.value.trim(),
-      booruUrl: elements.booruUrlInput.value.trim(),
+      booruUrl: normalizeBooruUrlInput(elements.booruUrlInput.value),
       apiKey: elements.apiKeyInput.value.trim(),
       rating: elements.ratingInput.value
     };
@@ -253,6 +316,7 @@ function addServerCard(entry) {
     friendlyNameInput: card.querySelector(".friendly-name"),
     booruUrlInput: card.querySelector(".booru-url"),
     grantAccessButton: card.querySelector(".grant-access"),
+    statusBlockEl: card.querySelector(".server-status-block"),
     urlStatusEl: card.querySelector(".url-status"),
     apiKeyInput: card.querySelector(".api-key"),
     ratingInput: card.querySelector(".rating")
@@ -338,6 +402,14 @@ async function load() {
   }
 
   refreshSaveButton();
+}
+
+if (browser.permissions.onAdded) {
+  browser.permissions.onAdded.addListener(() => {
+    for (const manager of serverManagers.values()) {
+      void manager.validateConnection(false);
+    }
+  });
 }
 
 load();

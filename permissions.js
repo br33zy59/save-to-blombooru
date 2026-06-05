@@ -291,6 +291,21 @@ function filenameFromMediaUrl(srcUrl, blob) {
   return tail.trim() || "upload.bin";
 }
 
+/** Ensure a Blombooru base URL has an explicit http(s) scheme for validation and storage. */
+function normalizeBooruUrlInput(urlString) {
+  const trimmed = String(urlString || "").trim();
+
+  if (!trimmed) {
+    return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
+}
+
 function originPatternFromUrl(urlString) {
   if (!urlString || isInlineMediaUrl(urlString)) {
     return null;
@@ -305,6 +320,7 @@ function originPatternFromUrl(urlString) {
   return `${origin}/*`;
 }
 
+/** True only for legacy builds that declared <all_urls> at install (pre-MV3 Firefox). */
 function hasInstallTimeBroadHostAccess() {
   const manifest = browser.runtime.getManifest();
 
@@ -329,7 +345,8 @@ function originsAreSame(urlA, urlB) {
 
 /**
  * Whether optional host permission must be requested before fetching media bytes.
- * On-page / same-origin media can be read via activeTab + executeScript without this.
+ * Remote / non-display URLs need host access. On-page display URLs are read via
+ * activeTab first; host permission is requested only if that fails.
  *
  * @param {string} srcUrl URL being uploaded
  * @param {string} pageUrl Active tab URL when the gallery was scanned
@@ -354,14 +371,8 @@ function shouldPromptForMediaHostPermission(srcUrl, pageUrl, mediaContext = null
 
   const { displayUrl, uploadUrl, fullOnPage } = mediaContext;
 
-  // Gallery thumb URL matches displayUrl but may still be cross-origin (CDN); only
-  // skip the host prompt when that URL is same-origin with the active tab.
-  if (
-    displayUrl &&
-    srcUrl === displayUrl &&
-    pageUrl &&
-    originsAreSame(displayUrl, pageUrl)
-  ) {
+  // On-page display URL — try activeTab scripting first (see needsMediaHostPermissionPrompt).
+  if (displayUrl && srcUrl === displayUrl) {
     return false;
   }
 
@@ -370,6 +381,57 @@ function shouldPromptForMediaHostPermission(srcUrl, pageUrl, mediaContext = null
   }
 
   return true;
+}
+
+function isOnPageDisplayUrl(srcUrl, mediaContext) {
+  return Boolean(mediaContext?.displayUrl && srcUrl === mediaContext.displayUrl);
+}
+
+/**
+ * After activeTab scripting fails to return bytes, whether host permission is needed
+ * for a background fetch (call beginHostPermissionRequests in the same user-gesture turn).
+ */
+function needsMediaHostPermissionPrompt(srcUrl, pageUrl, tabPayload) {
+  if (hasInstallTimeBroadHostAccess() || !srcUrl) {
+    return false;
+  }
+
+  if (tabPayload?.base64) {
+    return false;
+  }
+
+  if (isInlineMediaUrl(srcUrl)) {
+    return false;
+  }
+
+  if (pageUrl && originsAreSame(srcUrl, pageUrl)) {
+    return true;
+  }
+
+  return shouldPromptForMediaHostPermission(srcUrl, pageUrl, null);
+}
+
+function mediaHostPermissionPatternsForUrl(srcUrl) {
+  if (!srcUrl || isInlineMediaUrl(srcUrl)) {
+    return [];
+  }
+
+  try {
+    const pattern = originPatternFromUrl(srcUrl);
+
+    return pattern ? [pattern] : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+/** Gallery / menu metadata for an on-page display URL. */
+function onPageDisplayMediaContext(displayUrl) {
+  return {
+    displayUrl,
+    uploadUrl: displayUrl,
+    fullOnPage: false
+  };
 }
 
 async function ensureHostPermission(originPattern, requestIfNeeded) {
@@ -407,12 +469,85 @@ function beginHostPermissionRequests(originPatterns) {
   const unique = [...new Set(originPatterns.filter(Boolean))];
 
   return unique.map((pattern) => {
+    let requestPromise;
+
     try {
-      return browser.permissions.request({ origins: [pattern] });
+      requestPromise = browser.permissions.request({ origins: [pattern] });
     } catch (err) {
       console.warn("Host permission request failed:", err);
       return Promise.resolve(false);
     }
+
+    return requestPromise.catch((err) => {
+      console.warn("Host permission request failed:", err);
+      return false;
+    });
+  });
+}
+
+async function hostPermissionsGrantedForUrl(srcUrl) {
+  const patterns = mediaHostPermissionPatternsForUrl(srcUrl);
+
+  if (patterns.length === 0) {
+    return true;
+  }
+
+  const results = await Promise.all(
+    patterns.map((pattern) =>
+      browser.permissions.contains({ origins: [pattern] })
+    )
+  );
+
+  return results.every(Boolean);
+}
+
+function hostPermissionHostLabel(srcUrl) {
+  try {
+    return new URL(srcUrl).hostname;
+  } catch (err) {
+    return srcUrl;
+  }
+}
+
+const PENDING_CONTEXT_MENU_SAVE_KEY = "pendingContextMenuSave";
+
+async function persistPendingMediaHostSave(pending) {
+  await browser.storage.session.set({
+    [PENDING_CONTEXT_MENU_SAVE_KEY]: {
+      ...pending,
+      booruPermissionsPreGranted: true,
+      mediaPermissionsPreGranted: false
+    }
+  });
+}
+
+async function readPendingMediaHostSave() {
+  const data = await browser.storage.session.get(PENDING_CONTEXT_MENU_SAVE_KEY);
+
+  return data[PENDING_CONTEXT_MENU_SAVE_KEY] ?? null;
+}
+
+async function clearPendingMediaHostSave() {
+  await browser.storage.session.remove(PENDING_CONTEXT_MENU_SAVE_KEY);
+}
+
+function notifyBooruHostPermissionDenied() {
+  browser.notifications.create({
+    type: "basic",
+    iconUrl: browser.runtime.getURL("icon.png"),
+    title: browser.i18n.getMessage("notificationUploadFailedTitle"),
+    message: browser.i18n.getMessage("errorUploadHostPermission")
+  });
+}
+
+function notifyMediaHostPermissionDenied(srcUrl) {
+  const host = hostPermissionHostLabel(srcUrl);
+
+  browser.notifications.create({
+    type: "basic",
+    iconUrl: browser.runtime.getURL("icon.png"),
+    title: browser.i18n.getMessage("notificationUploadFailedTitle"),
+    message: browser.i18n.getMessage("errorUploadMediaHostPermission", host)
   });
 }
 

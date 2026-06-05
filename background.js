@@ -128,14 +128,42 @@ function base64ToBlob(base64, mimeType) {
   return new Blob([bytes], { type: mimeType });
 }
 
-async function acquireMediaBlobFromTab(tabId, srcUrl) {
-  const payload = await runInTab(tabId, extractMediaBlobInPage, [srcUrl]);
+async function acquireTabMediaPayload(tabId, srcUrl) {
+  const normalizedTabId = normalizeTabId(tabId);
 
-  if (!payload?.base64) {
+  if (normalizedTabId < 0 || !srcUrl) {
+    return null;
+  }
+
+  try {
+    const payload = await runInTab(normalizedTabId, extractMediaBlobInPage, [srcUrl]);
+
+    if (!payload?.base64) {
+      return null;
+    }
+
+    return payload;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function acquireMediaBlobFromTab(tabId, srcUrl) {
+  const payload = await acquireTabMediaPayload(tabId, srcUrl);
+
+  if (!payload) {
     return null;
   }
 
   return base64ToBlob(payload.base64, payload.mimeType);
+}
+
+function mediaBlobFromTabPayload(tabPayload) {
+  if (!tabPayload?.base64) {
+    return null;
+  }
+
+  return base64ToBlob(tabPayload.base64, tabPayload.mimeType);
 }
 
 function fetchDataMediaBlob(srcUrl) {
@@ -179,7 +207,12 @@ async function fetchMediaBlob(srcUrl, requestPermission) {
   return response.blob();
 }
 
-async function resolveMediaBlob(tabId, srcUrl, requestPermission) {
+async function resolveMediaBlob(
+  tabId,
+  srcUrl,
+  requestPermission,
+  { tabPayload = null } = {}
+) {
   const normalizedTabId = normalizeTabId(tabId);
 
   if (isDataMediaUrl(srcUrl)) {
@@ -190,18 +223,18 @@ async function resolveMediaBlob(tabId, srcUrl, requestPermission) {
     return fetchMediaBlob(srcUrl, false);
   }
 
-  if (normalizedTabId >= 0) {
+  let blob = mediaBlobFromTabPayload(tabPayload);
+
+  if (!blob && normalizedTabId >= 0) {
     try {
-      const blob = await acquireMediaBlobFromTab(normalizedTabId, srcUrl);
-      if (blob) {
-        return blob;
-      }
+      blob = await acquireMediaBlobFromTab(normalizedTabId, srcUrl);
     } catch (e) {
       // Fall through to optional host permission + fetch.
     }
   }
 
-  const blob = await fetchMediaBlob(srcUrl, requestPermission);
+  blob = blob || (await fetchMediaBlob(srcUrl, requestPermission));
+
   if (blob) {
     return blob;
   }
@@ -345,13 +378,40 @@ async function resumeAnyPendingSaveIfAny() {
   return resumePendingContextMenuSaveIfAny();
 }
 
-function notifyUploadHostPermissionDenied() {
+
+function notifySaveNeedsMediaHostPermissionPopupRetry(srcUrl) {
+  const host = hostPermissionHostLabel(srcUrl);
+
   browser.notifications.create({
     type: "basic",
     iconUrl: browser.runtime.getURL("icon.png"),
     title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-    message: browser.i18n.getMessage("errorUploadHostPermission")
+    message: browser.i18n.getMessage("notifyGrantMediaHostPermissionPopup", host)
   });
+}
+
+async function deferSaveForMediaHostPermissionPopupRetry({
+  tabId,
+  pageUrl,
+  srcUrl,
+  serverId,
+  tabPayload
+}) {
+  await persistPendingMediaHostSave({
+    tabId,
+    pageUrl,
+    srcUrl,
+    serverId,
+    tabPayload
+  });
+
+  notifySaveNeedsMediaHostPermissionPopupRetry(srcUrl);
+
+  try {
+    await browser.action.openPopup();
+  } catch (err) {
+    console.warn("Could not open extension popup for host permission retry:", err);
+  }
 }
 
 function resolutionMediaContext(resolution) {
@@ -362,45 +422,12 @@ function resolutionMediaContext(resolution) {
   };
 }
 
-function buildContextMenuHostPermissionPatterns({
-  server,
-  pageUrl,
-  mediaUrl,
-  mediaContext
-}) {
-  const patterns = [];
-
-  if (server?.booruUrl) {
-    try {
-      patterns.push(originPatternFromUrl(server.booruUrl));
-    } catch (err) {
-      // Ignore invalid booru URL.
-    }
-  }
-
-  if (
-    mediaUrl &&
-    shouldPromptForMediaHostPermission(mediaUrl, pageUrl, mediaContext)
-  ) {
-    try {
-      const pattern = originPatternFromUrl(mediaUrl);
-
-      if (pattern && !patterns.includes(pattern)) {
-        patterns.push(pattern);
-      }
-    } catch (err) {
-      // Ignore invalid media URL.
-    }
-  }
-
-  return patterns;
-}
-
 async function saveMediaToBlombooru({
   tabId,
   pageUrl,
   srcUrl,
   serverId,
+  tabPayload = null,
   permissionsPreGranted = false,
   booruPermissionsPreGranted,
   mediaPermissionsPreGranted
@@ -409,11 +436,11 @@ async function saveMediaToBlombooru({
   const server = findServerById(servers, serverId);
 
   if (!server || !server.booruUrl) {
-    return;
+    throw new Error(browser.i18n.getMessage("errorServerNotConfigured"));
   }
 
   if (pageUrl && isSameServerOrigin(pageUrl, server.booruUrl)) {
-    return;
+    throw new Error(browser.i18n.getMessage("popupGalleryServerOnPage"));
   }
 
   const normalizedTabId = normalizeTabId(tabId);
@@ -430,13 +457,8 @@ async function saveMediaToBlombooru({
   );
 
   if (!hasBooruAccess) {
-    browser.notifications.create({
-      type: "basic",
-      iconUrl: browser.runtime.getURL("icon.png"),
-      title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-      message: browser.i18n.getMessage("errorUploadHostPermission")
-    });
-    return;
+    notifyBooruHostPermissionDenied();
+    throw new Error(browser.i18n.getMessage("errorUploadHostPermission"));
   }
 
   const caption = await captureMediaCaption(normalizedTabId, srcUrl);
@@ -447,7 +469,8 @@ async function saveMediaToBlombooru({
     const mediaBlob = await resolveMediaBlob(
       normalizedTabId,
       srcUrl,
-      requestMediaPermission
+      requestMediaPermission,
+      { tabPayload }
     );
     preparedUpload = await prepareMediaForUpload(mediaBlob, srcUrl);
   } catch (err) {
@@ -462,7 +485,7 @@ async function saveMediaToBlombooru({
       title: browser.i18n.getMessage("notificationUploadFailedTitle"),
       message
     });
-    return;
+    throw new Error(message);
   }
 
   await performUpload({
@@ -477,7 +500,6 @@ async function saveMediaToBlombooru({
 const contextMenuMediaCache = new Map();
 let configuredServersForMenus = [];
 const PENDING_GALLERY_SAVE_KEY = "pendingGallerySave";
-const PENDING_CONTEXT_MENU_SAVE_KEY = "pendingContextMenuSave";
 let resumingPendingSave = false;
 
 function contextMenuMediaCacheKey(tabId, srcUrl) {
@@ -539,65 +561,56 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   const server = findServerById(configuredServersForMenus, serverId);
   const isFullChoice = variant === "full";
 
-  const phase1Patterns = buildContextMenuHostPermissionPatterns({
-    server,
-    pageUrl,
-    mediaUrl: isFullChoice ? null : info.srcUrl,
-    mediaContext: null
-  });
-  const phase1Requests = beginHostPermissionRequests(phase1Patterns);
+  let booruRequests = [];
 
-  const resolution = await resolveContextMenuMedia(tabId, info.srcUrl);
-  const srcUrl = uploadSrcUrlForContextMenuChoice(resolution, variant, info.srcUrl);
-  const mediaContext = resolutionMediaContext(resolution);
-  const needsMediaHostPrompt = shouldPromptForMediaHostPermission(
-    srcUrl,
-    pageUrl,
-    mediaContext
-  );
+  try {
+    const booruPattern = originPatternFromUrl(server.booruUrl);
 
-  let phase2Requests = [];
-
-  if (isFullChoice) {
-    const phase2Patterns = buildContextMenuHostPermissionPatterns({
-      server,
-      pageUrl,
-      mediaUrl: srcUrl,
-      mediaContext
-    });
-    const addedPatterns = phase2Patterns.filter((pattern) => !phase1Patterns.includes(pattern));
-    phase2Requests = beginHostPermissionRequests(addedPatterns);
+    if (booruPattern) {
+      booruRequests = beginHostPermissionRequests([booruPattern]);
+    }
+  } catch (e) {
+    // Ignore invalid booru URL.
   }
 
-  const needsPendingResume = phase2Requests.length > 0;
+  const displayProbeUrl = isFullChoice ? null : info.srcUrl;
+  const displayProbePromise =
+    displayProbeUrl && tabId >= 0
+      ? acquireTabMediaPayload(tabId, displayProbeUrl)
+      : Promise.resolve(null);
+  const resolutionPromise = resolveContextMenuMedia(tabId, info.srcUrl);
 
-  if (needsPendingResume) {
-    await browser.storage.session.set({
-      [PENDING_CONTEXT_MENU_SAVE_KEY]: {
+  const booruGranted = await awaitHostPermissionRequests(booruRequests);
+
+  if (!booruGranted) {
+    notifyBooruHostPermissionDenied();
+    return;
+  }
+
+  const resolution = await resolutionPromise;
+  const srcUrl = uploadSrcUrlForContextMenuChoice(resolution, variant, info.srcUrl);
+
+  let tabPayload = await displayProbePromise;
+
+  if (tabId >= 0 && srcUrl !== displayProbeUrl) {
+    const uploadProbe = await acquireTabMediaPayload(tabId, srcUrl);
+
+    if (uploadProbe?.base64) {
+      tabPayload = uploadProbe;
+    }
+  }
+
+  if (needsMediaHostPermissionPrompt(srcUrl, pageUrl, tabPayload)) {
+    if (!(await hostPermissionsGrantedForUrl(srcUrl))) {
+      await deferSaveForMediaHostPermissionPopupRetry({
         tabId,
         pageUrl,
         srcUrl,
         serverId,
-        booruPermissionsPreGranted: true,
-        mediaPermissionsPreGranted: !needsMediaHostPrompt
-      }
-    });
-  }
-
-  const allRequests = [...phase1Requests, ...phase2Requests];
-  const granted = await awaitHostPermissionRequests(allRequests);
-
-  if (!granted) {
-    if (needsPendingResume) {
-      await browser.storage.session.remove(PENDING_CONTEXT_MENU_SAVE_KEY);
+        tabPayload
+      });
+      return;
     }
-
-    notifyUploadHostPermissionDenied();
-    return;
-  }
-
-  if (needsPendingResume) {
-    await browser.storage.session.remove(PENDING_CONTEXT_MENU_SAVE_KEY);
   }
 
   await saveMediaToBlombooru({
@@ -605,8 +618,9 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     pageUrl,
     srcUrl,
     serverId,
+    tabPayload,
     booruPermissionsPreGranted: true,
-    mediaPermissionsPreGranted: !needsMediaHostPrompt || granted
+    mediaPermissionsPreGranted: true
   });
 });
 
@@ -635,6 +649,45 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "galleryMediaHostPermissionSettled") {
+    const { granted, srcUrl, serverId, tabId, pageUrl } = message.payload ?? {};
+
+    (async () => {
+      if (!granted) {
+        notifyMediaHostPermissionDenied(srcUrl);
+        sendResponse({ ok: false });
+        return;
+      }
+
+      await clearPendingMediaHostSave();
+      await saveMediaToBlombooru({
+        tabId,
+        pageUrl,
+        srcUrl,
+        serverId,
+        booruPermissionsPreGranted: true,
+        mediaPermissionsPreGranted: true
+      });
+      sendResponse({ ok: true });
+    })().catch((err) => {
+      console.warn("Gallery save after media host permission failed:", err);
+      sendResponse({ ok: false, error: err.message });
+    });
+
+    return true;
+  }
+
+  if (message?.type === "serversUpdated") {
+    scheduleContextMenusUpdate(() => updateContextMenus())
+      .then(() => sendResponse({ ok: true }))
+      .catch((err) => {
+        console.warn("Context menu refresh after servers update failed:", err);
+        sendResponse({ ok: false, error: err.message });
+      });
+
+    return true;
+  }
+
   return undefined;
 });
 
@@ -648,10 +701,15 @@ let contextMenusUpdateChain = Promise.resolve();
 
 function scheduleContextMenusUpdate(updateFn) {
   contextMenusUpdateChain = contextMenusUpdateChain.then(updateFn, updateFn);
+  return contextMenusUpdateChain;
 }
 
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area === "local") {
+  if (area !== "local") {
+    return;
+  }
+
+  if (changes.servers) {
     scheduleContextMenusUpdate(() => updateContextMenus());
   }
 });
@@ -916,6 +974,7 @@ async function performUpload(data) {
       title: browser.i18n.getMessage("notificationUploadFailedTitle"),
       message: err.message
     });
+    throw err;
   }
 }
 

@@ -18,7 +18,16 @@
   "optional_host_permissions": ["http://*/*", "https://*/*"],
 
   "background": {
-    "service_worker": "background-sw.js"
+    "service_worker": "background-sw.js",
+    "scripts": [
+      "browser.js",
+      "permissions.js",
+      "tab-scripting.js",
+      "media-context.js",
+      "servers.js",
+      "auth.js",
+      "background.js"
+    ]
   },
 
   "action": {

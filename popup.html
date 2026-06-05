@@ -238,6 +238,14 @@
 
 
 
+    .gallery-hover-preview__img[hidden] {
+
+      display: none !important;
+
+    }
+
+
+
     .gallery-hover-preview__img--broken {
 
       opacity: 0.35;
@@ -487,6 +495,52 @@
       color: GrayText;
 
       font-size: 12px;
+
+    }
+
+
+
+    .page-media-status--host-retry {
+
+      color: light-dark(#c62828, #ff8a80);
+
+      font-weight: 600;
+
+      animation: host-retry-pulse 1.2s ease-in-out infinite;
+
+    }
+
+
+
+    @keyframes host-retry-pulse {
+
+      0%,
+
+      100% {
+
+        opacity: 1;
+
+      }
+
+
+
+      50% {
+
+        opacity: 0.5;
+
+      }
+
+    }
+
+
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .page-media-status--host-retry {
+
+        animation: none;
+
+      }
 
     }
 
@@ -889,6 +943,68 @@
     .media-cell:focus-within .media-choice-overlay,
 
     .media-cell--show-choice .media-choice-overlay {
+
+      display: flex;
+
+    }
+
+
+
+    .media-cell--host-retry {
+
+      outline: 2px solid LinkText;
+
+      outline-offset: 2px;
+
+    }
+
+
+
+    .media-upload-feedback {
+
+      position: absolute;
+
+      inset: 0;
+
+      z-index: 4;
+
+      display: none;
+
+      align-items: center;
+
+      justify-content: center;
+
+      border-radius: 4px;
+
+      background: color-mix(in srgb, #000 50%, transparent);
+
+      color: #86efac;
+
+      font-size: 1.1rem;
+
+      font-weight: 700;
+
+      pointer-events: none;
+
+    }
+
+
+
+    .media-upload-feedback--failure {
+
+      color: #fca5a5;
+
+    }
+
+
+
+    .media-cell--upload-success .media-upload-feedback,
+
+    .media-cell--upload-success .media-upload-feedback.media-upload-feedback--success,
+
+    .media-cell--upload-failure .media-upload-feedback,
+
+    .media-cell--upload-failure .media-upload-feedback.media-upload-feedback--failure {
 
       display: flex;
 

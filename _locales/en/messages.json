@@ -50,6 +50,12 @@
   "popupGalleryUpload": {
     "message": "Upload"
   },
+  "popupGalleryUploadSuccess": {
+    "message": "✓ Saved"
+  },
+  "popupGalleryUploadFailed": {
+    "message": "✗ Failed"
+  },
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Resolution unknown"
   },
@@ -305,6 +311,33 @@
   },
   "errorUploadHostPermission": {
     "message": "Upload cancelled: allow access to your Blombooru server when prompted."
+  },
+  "errorUploadMediaHostPermission": {
+    "message": "Upload cancelled: allow access to $1$ (this image's host) when prompted.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
+  },
+  "notifyGrantMediaHostPermissionPopup": {
+    "message": "This image needs access to $1$. In the extension popup, click it again and choose your server to allow access.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
+  },
+  "popupMediaHostRetryPrompt": {
+    "message": "Click the highlighted image and choose your server again to allow access to $1$.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload failed: method not allowed. Check your Blombooru base URL."

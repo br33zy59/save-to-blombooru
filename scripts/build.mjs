@@ -4,7 +4,15 @@
  * Archive root contains manifest.json and peers (not a wrapper folder).
  */
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
@@ -27,15 +35,47 @@ const SHARED_FILES = [
   "icon.png"
 ];
 
+const SERVICE_WORKER_ENTRY = "background-sw.js";
+const BACKGROUND_MODULES_PATH = "background-modules.json";
+
+function loadBackgroundModuleList() {
+  return JSON.parse(readFileSync(join(root, BACKGROUND_MODULES_PATH), "utf8"));
+}
+
+function validateBackgroundModuleList() {
+  const modules = loadBackgroundModuleList();
+
+  if (!Array.isArray(modules) || modules.length === 0) {
+    throw new Error(`${BACKGROUND_MODULES_PATH} must be a non-empty array of script paths.`);
+  }
+
+  const swSource = readFileSync(join(root, SERVICE_WORKER_ENTRY), "utf8");
+
+  for (const file of modules) {
+    if (!swSource.includes(`"${file}"`)) {
+      throw new Error(
+        `${SERVICE_WORKER_ENTRY} must importScripts("${file}") — out of sync with ${BACKGROUND_MODULES_PATH}.`
+      );
+    }
+  }
+
+  return modules;
+}
+
+function applyBackgroundToManifest(manifest) {
+  manifest.background = {
+    service_worker: SERVICE_WORKER_ENTRY,
+    scripts: loadBackgroundModuleList()
+  };
+}
+
 const TARGETS = {
   firefox: {
     manifest: "manifest.json",
-    extraFiles: [],
     zipPrefix: "save-to-blombooru-firefox"
   },
   chrome: {
     manifest: "manifest.chrome.json",
-    extraFiles: ["background-sw.js"],
     zipPrefix: "save-to-blombooru-chrome"
   }
 };
@@ -111,15 +151,18 @@ function buildTarget(targetName) {
   mkdirSync(stagingDir, { recursive: true });
 
   const manifest = JSON.parse(readFileSync(join(root, target.manifest), "utf8"));
-  cpSync(join(root, target.manifest), join(stagingDir, "manifest.json"));
+  applyBackgroundToManifest(manifest);
+  writeFileSync(
+    join(stagingDir, "manifest.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8"
+  );
 
   for (const file of SHARED_FILES) {
     cpSync(join(root, file), join(stagingDir, file));
   }
 
-  for (const file of target.extraFiles) {
-    cpSync(join(root, file), join(stagingDir, file));
-  }
+  cpSync(join(root, SERVICE_WORKER_ENTRY), join(stagingDir, SERVICE_WORKER_ENTRY));
 
   cpSync(join(root, "_locales"), join(stagingDir, "_locales"), { recursive: true });
 
@@ -127,9 +170,7 @@ function buildTarget(targetName) {
   const zipPath = join(buildDir, zipName);
   createZip(zipPath, stagingDir);
   console.log(`Created ${zipPath}`);
-  if (targetName === "chrome") {
-    console.log(`  Chrome dev: Load unpacked → ${stagingDir}`);
-  }
+  console.log(`  ${targetName} dev: Load unpacked → ${stagingDir}`);
 }
 
 function main() {
@@ -151,6 +192,7 @@ function main() {
 
   cleanLegacyBuildArtifacts();
   validateLocales();
+  validateBackgroundModuleList();
 
   for (const targetName of selected) {
     buildTarget(targetName);

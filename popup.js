@@ -31,6 +31,8 @@ const galleryItemCount = document.getElementById("galleryItemCount");
 
 /** Reserved left column width (must match CSS .gallery-hover-preview-pane). */
 const GALLERY_PREVIEW_PANE_WIDTH = 360;
+/** Match background.js BADGE_CLEAR_MS so toolbar and gallery feedback stay in sync. */
+const GALLERY_UPLOAD_FEEDBACK_MS = 2500;
 const GALLERY_PREVIEW_PANE_PADDING = 20;
 const GALLERY_PREVIEW_MAX_WIDTH = GALLERY_PREVIEW_PANE_WIDTH - GALLERY_PREVIEW_PANE_PADDING;
 const GALLERY_PREVIEW_MAX_HEIGHT = 460;
@@ -79,6 +81,10 @@ const GALLERY_SORT_DIRECTION_KEYS = {
 };
 
 let gallerySourceTabId = -1;
+/** When set, the next save click for this pair should request media host access first. */
+let mediaHostRetryTarget = null;
+/** Last server list loaded by the popup (used for sync save routing without losing user gesture). */
+let galleryServersCache = null;
 let galleryPageUrl = "";
 let galleryMenuIgnoreDismissUntil = 0;
 let galleryItems = [];
@@ -93,6 +99,8 @@ const GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS = 220;
 const galleryRemoteFullPreviewCache = new Map();
 let galleryHoverPreviewSession = 0;
 let galleryHoverPreviewContext = null;
+/** @type {Map<string, ReturnType<typeof setTimeout>>} */
+const galleryUploadFeedbackTimeouts = new Map();
 let galleryRemoteFullPreviewTimer = null;
 
 function defaultSortAscending(sortKey) {
@@ -422,6 +430,7 @@ function applyGalleryView() {
   clearPageMediaStatus();
   const sorted = sortGalleryItems(filtered, galleryViewSort, galleryViewSortAscending);
   renderPageMediaGallery(sorted);
+  void applyPendingMediaHostRetryUi();
 }
 
 function renderServerLinks(instances) {
@@ -793,7 +802,10 @@ function showGalleryHoverPreview(
 
   if (useVideoPreview) {
     galleryHoverPreviewImg.hidden = true;
+    galleryHoverPreviewImg.removeAttribute("src");
     galleryHoverPreviewImg.classList.remove("gallery-hover-preview__img--broken");
+    galleryHoverPreviewImg.style.width = "";
+    galleryHoverPreviewImg.style.height = "";
     galleryHoverPreviewVideo.hidden = false;
 
     if (galleryHoverPreviewVideo.src !== previewUrl) {
@@ -818,6 +830,8 @@ function showGalleryHoverPreview(
   galleryHoverPreviewVideo.pause();
   galleryHoverPreviewVideo.removeAttribute("src");
   galleryHoverPreviewVideo.hidden = true;
+  galleryHoverPreviewVideo.style.width = "";
+  galleryHoverPreviewVideo.style.height = "";
   galleryHoverPreviewImg.hidden = false;
   galleryHoverPreviewImg.alt = altText || "";
   galleryHoverPreviewImg.classList.remove("gallery-hover-preview__img--broken");
@@ -892,6 +906,7 @@ function bindGalleryHoverPreview(cell, item) {
     const token = ++galleryHoverPreviewSession;
     galleryHoverPreviewContext = {
       token,
+      displayUrl,
       uploadUrl,
       kind,
       altText,
@@ -938,7 +953,20 @@ function showPageMediaLoading() {
   pageMediaHost.replaceChildren();
 }
 
+function clearMediaHostRetryStatusUi() {
+  pageMediaStatus.classList.remove("page-media-status--host-retry");
+  pageMediaStatus.removeAttribute("role");
+}
+
+function showMediaHostRetryStatus(host) {
+  pageMediaStatus.hidden = false;
+  pageMediaStatus.textContent = browser.i18n.getMessage("popupMediaHostRetryPrompt", host);
+  pageMediaStatus.classList.add("page-media-status--host-retry");
+  pageMediaStatus.setAttribute("role", "alert");
+}
+
 function clearPageMediaStatus() {
+  clearMediaHostRetryStatusUi();
   pageMediaStatus.hidden = true;
   pageMediaStatus.textContent = "";
 }
@@ -990,75 +1018,258 @@ function positionGalleryServerMenu(anchorEl) {
   galleryServerMenu.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
-const PENDING_GALLERY_SAVE_KEY = "pendingGallerySave";
+function galleryBooruPermissionPatterns(server) {
+  try {
+    const pattern = originPatternFromUrl(server.booruUrl);
 
-function galleryMediaContextForSaveUrl(srcUrl) {
-  const item = galleryItems.find(
-    (entry) => entry.displayUrl === srcUrl || entry.uploadUrl === srcUrl
-  );
+    return pattern ? [pattern] : [];
+  } catch (err) {
+    return [];
+  }
+}
 
-  if (!item) {
+async function acquireTabPayloadInPopup(tabId, srcUrl) {
+  if (normalizeTabId(tabId) < 0 || !srcUrl) {
     return null;
   }
 
-  return {
-    displayUrl: item.displayUrl,
-    uploadUrl: item.uploadUrl,
-    fullOnPage: Boolean(item.fullOnPage)
-  };
-}
-
-function gallerySavePermissionPatterns(srcUrl, server) {
-  const patterns = [];
-  const mediaContext = galleryMediaContextForSaveUrl(srcUrl);
-
-  if (shouldPromptForMediaHostPermission(srcUrl, galleryPageUrl, mediaContext)) {
-    const mediaPattern = originPatternFromUrl(srcUrl);
-
-    if (mediaPattern) {
-      patterns.push(mediaPattern);
-    }
-  }
-
   try {
-    patterns.push(originPatternFromUrl(server.booruUrl));
+    const payload = await runInTab(tabId, extractMediaBlobInPage, [srcUrl]);
+
+    if (!payload?.base64) {
+      return null;
+    }
+
+    return payload;
   } catch (err) {
-    // Ignore invalid booru URL.
+    console.warn("Tab media probe failed:", err);
+    return null;
   }
-
-  return patterns;
 }
 
-function notifyGallerySavePermissionDenied() {
-  browser.notifications.create({
-    type: "basic",
-    iconUrl: browser.runtime.getURL("icon.png"),
-    title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-    message: browser.i18n.getMessage("errorUploadHostPermission")
-  });
-}
+function runGalleryMediaHostPermissionRetry(srcUrl, serverId, server) {
+  closeGalleryServerMenu();
+  hideGalleryHoverPreview();
 
-async function finishGallerySaveAfterPermissions(granted) {
-  if (!granted) {
-    await browser.storage.session.remove(PENDING_GALLERY_SAVE_KEY);
-    notifyGallerySavePermissionDenied();
+  if (hasInstallTimeBroadHostAccess()) {
+    void beginGallerySaveWithPermissions(srcUrl, serverId, server, {
+      isMediaHostRetry: true
+    });
     return;
   }
 
-  try {
-    const response = await browser.runtime.sendMessage({
-      type: "resumePendingGallerySave"
+  const mediaRequests = beginHostPermissionRequests(
+    mediaHostPermissionPatternsForUrl(srcUrl)
+  );
+
+  if (mediaRequests.length === 0) {
+    void beginGallerySaveWithPermissions(srcUrl, serverId, server, {
+      isMediaHostRetry: true
+    });
+    return;
+  }
+
+  const payload = {
+    srcUrl,
+    serverId,
+    tabId: gallerySourceTabId,
+    pageUrl: galleryPageUrl
+  };
+
+  void awaitHostPermissionRequests(mediaRequests)
+    .then((granted) =>
+      browser.runtime.sendMessage({
+        type: "galleryMediaHostPermissionSettled",
+        payload: { granted, ...payload }
+      })
+    )
+    .catch((err) => {
+      console.warn("Media host permission request failed:", err);
+      void browser.runtime.sendMessage({
+        type: "galleryMediaHostPermissionSettled",
+        payload: { granted: false, ...payload }
+      });
     });
 
-    if (response && !response.ok) {
-      console.warn("Gallery save failed:", response.error);
+  window.close();
+}
+
+function clearGalleryItemUploadFeedback(cell) {
+  if (!cell) {
+    return;
+  }
+
+  const feedback = cell.querySelector(".media-upload-feedback");
+
+  if (feedback) {
+    feedback.hidden = true;
+    feedback.classList.remove("media-upload-feedback--success", "media-upload-feedback--failure");
+  }
+
+  cell.classList.remove("media-cell--upload-success", "media-cell--upload-failure");
+}
+
+function clearGalleryItemUploadFeedbackForSrcUrl(srcUrl) {
+  const existingTimeout = galleryUploadFeedbackTimeouts.get(srcUrl);
+
+  if (existingTimeout) {
+    clearTimeout(existingTimeout);
+    galleryUploadFeedbackTimeouts.delete(srcUrl);
+  }
+
+  clearGalleryItemUploadFeedback(findGalleryCellForSrcUrl(srcUrl));
+}
+
+function clearAllGalleryItemUploadFeedback() {
+  for (const srcUrl of galleryUploadFeedbackTimeouts.keys()) {
+    clearGalleryItemUploadFeedbackForSrcUrl(srcUrl);
+  }
+
+  pageMediaHost
+    .querySelectorAll(".media-cell--upload-success, .media-cell--upload-failure")
+    .forEach((cell) => {
+      clearGalleryItemUploadFeedback(cell);
+    });
+}
+
+function showGalleryItemUploadOutcome(srcUrl, outcome) {
+  const isSuccess = outcome === "success";
+  const messageKey = isSuccess ? "popupGalleryUploadSuccess" : "popupGalleryUploadFailed";
+  const feedbackClass = isSuccess
+    ? "media-upload-feedback--success"
+    : "media-upload-feedback--failure";
+  const cellClass = isSuccess ? "media-cell--upload-success" : "media-cell--upload-failure";
+
+  for (const otherSrcUrl of [...galleryUploadFeedbackTimeouts.keys()]) {
+    if (otherSrcUrl !== srcUrl) {
+      clearGalleryItemUploadFeedbackForSrcUrl(otherSrcUrl);
     }
-  } catch (err) {
-    console.warn("Gallery save resume failed:", err);
+  }
+
+  clearGalleryItemUploadFeedbackForSrcUrl(srcUrl);
+
+  const cell = findGalleryCellForSrcUrl(srcUrl);
+
+  if (cell) {
+    const wrap = cell.querySelector(".media-thumb-wrap");
+    let feedback = wrap?.querySelector(".media-upload-feedback");
+
+    if (wrap && !feedback) {
+      feedback = document.createElement("div");
+      feedback.className = "media-upload-feedback";
+      feedback.setAttribute("aria-live", "polite");
+      wrap.appendChild(feedback);
+    }
+
+    if (feedback) {
+      feedback.textContent = browser.i18n.getMessage(messageKey);
+      feedback.classList.remove("media-upload-feedback--success", "media-upload-feedback--failure");
+      feedback.classList.add(feedbackClass);
+      feedback.hidden = false;
+    }
+
+    cell.classList.remove("media-cell--upload-success", "media-cell--upload-failure");
+    cell.classList.add(cellClass);
+  }
+
+  const timeout = setTimeout(() => {
+    galleryUploadFeedbackTimeouts.delete(srcUrl);
+    clearGalleryItemUploadFeedback(findGalleryCellForSrcUrl(srcUrl));
+  }, GALLERY_UPLOAD_FEEDBACK_MS);
+
+  galleryUploadFeedbackTimeouts.set(srcUrl, timeout);
+}
+
+function showGalleryItemUploadSuccess(srcUrl) {
+  showGalleryItemUploadOutcome(srcUrl, "success");
+}
+
+function showGalleryItemUploadFailure(srcUrl) {
+  showGalleryItemUploadOutcome(srcUrl, "failure");
+}
+
+function findGalleryCellForSrcUrl(srcUrl) {
+  if (!srcUrl) {
+    return null;
+  }
+
+  for (const cell of pageMediaHost.querySelectorAll(".media-cell")) {
+    if (cell.dataset.displayUrl === srcUrl || cell.dataset.uploadUrl === srcUrl) {
+      return cell;
+    }
+  }
+
+  return null;
+}
+
+function clearMediaHostRetryHighlight() {
+  pageMediaHost.querySelectorAll(".media-cell--host-retry").forEach((cell) => {
+    cell.classList.remove("media-cell--host-retry");
+  });
+}
+
+async function clearMediaHostRetryState() {
+  mediaHostRetryTarget = null;
+  clearMediaHostRetryHighlight();
+  clearMediaHostRetryStatusUi();
+  await clearPendingMediaHostSave();
+}
+
+async function applyPendingMediaHostRetryUi() {
+  clearMediaHostRetryHighlight();
+
+  const pending = (await readPendingMediaHostSave()) || mediaHostRetryTarget;
+
+  if (!pending?.srcUrl) {
+    mediaHostRetryTarget = null;
+    return;
+  }
+
+  if (await hostPermissionsGrantedForUrl(pending.srcUrl)) {
+    await clearMediaHostRetryState();
+    return;
+  }
+
+  const allServers = await getServersFromStorage();
+
+  galleryServersCache = allServers;
+
+  const server = findServerById(allServers, pending.serverId);
+
+  mediaHostRetryTarget = {
+    srcUrl: pending.srcUrl,
+    serverId: pending.serverId,
+    server: server || undefined
+  };
+
+  const host = hostPermissionHostLabel(pending.srcUrl);
+
+  showMediaHostRetryStatus(host);
+
+  const cell = findGalleryCellForSrcUrl(pending.srcUrl);
+
+  if (!cell) {
+    return;
+  }
+
+  cell.classList.add("media-cell--host-retry");
+  cell.scrollIntoView({ block: "nearest", inline: "nearest" });
+
+  pageMediaHost.querySelectorAll(".media-cell--show-choice").forEach((other) => {
+    other.classList.remove("media-cell--show-choice");
+  });
+  cell.classList.add("media-cell--show-choice");
+
+  const { available } = partitionServersForPage(galleryPageUrl, allServers);
+
+  if (available.length > 1) {
+    requestAnimationFrame(() => {
+      void openGalleryServerMenu(pending.srcUrl, cell);
+    });
   }
 }
 
-async function startGallerySave(srcUrl, serverId) {
+async function startGallerySave(srcUrl, serverId, tabPayload = null) {
   closeGalleryServerMenu();
 
   try {
@@ -1069,60 +1280,116 @@ async function startGallerySave(srcUrl, serverId) {
         pageUrl: galleryPageUrl,
         srcUrl,
         serverId,
+        tabPayload,
         booruPermissionsPreGranted: true,
-        mediaPermissionsPreGranted: !shouldPromptForMediaHostPermission(
-          srcUrl,
-          galleryPageUrl,
-          galleryMediaContextForSaveUrl(srcUrl)
-        )
+        mediaPermissionsPreGranted: true
       }
     });
 
-    if (response && !response.ok) {
-      console.warn("Gallery save failed:", response.error);
+    if (response?.ok) {
+      showGalleryItemUploadSuccess(srcUrl);
+    } else {
+      showGalleryItemUploadFailure(srcUrl);
+
+      if (response) {
+        console.warn("Gallery save failed:", response.error);
+      }
     }
   } catch (err) {
+    showGalleryItemUploadFailure(srcUrl);
     console.warn("Gallery save message failed:", err);
   }
 }
 
-function beginGallerySaveWithPermissions(srcUrl, serverId, server) {
+async function beginGallerySaveWithPermissions(
+  srcUrl,
+  serverId,
+  server,
+  { isMediaHostRetry = false } = {}
+) {
   closeGalleryServerMenu();
 
   if (hasInstallTimeBroadHostAccess()) {
+    await clearMediaHostRetryState();
     void startGallerySave(srcUrl, serverId);
     return;
   }
 
-  const mediaContext = galleryMediaContextForSaveUrl(srcUrl);
-  const needsMediaHostPrompt = shouldPromptForMediaHostPermission(
-    srcUrl,
-    galleryPageUrl,
-    mediaContext
-  );
-  const pendingPayload = {
-    tabId: gallerySourceTabId,
-    pageUrl: galleryPageUrl,
-    srcUrl,
-    serverId,
-    booruPermissionsPreGranted: true,
-    mediaPermissionsPreGranted: !needsMediaHostPrompt
-  };
+  const booruRequests = beginHostPermissionRequests(galleryBooruPermissionPatterns(server));
+  const probePromise = acquireTabPayloadInPopup(gallerySourceTabId, srcUrl);
 
-  void browser.storage.session.set({ [PENDING_GALLERY_SAVE_KEY]: pendingPayload });
+  const booruGranted = await awaitHostPermissionRequests(booruRequests);
 
-  const permissionRequests = beginHostPermissionRequests(
-    gallerySavePermissionPatterns(srcUrl, server)
-  );
-
-  if (permissionRequests.length === 0) {
-    void finishGallerySaveAfterPermissions(true);
+  if (!booruGranted) {
+    notifyBooruHostPermissionDenied();
     return;
   }
 
-  void Promise.all(permissionRequests).then((results) => {
-    void finishGallerySaveAfterPermissions(results.every(Boolean));
-  });
+  const tabPayload = await probePromise;
+
+  if (needsMediaHostPermissionPrompt(srcUrl, galleryPageUrl, tabPayload)) {
+    if (!(await hostPermissionsGrantedForUrl(srcUrl))) {
+      if (!isMediaHostRetry) {
+        await persistPendingMediaHostSave({
+          tabId: gallerySourceTabId,
+          pageUrl: galleryPageUrl,
+          srcUrl,
+          serverId
+        });
+        mediaHostRetryTarget = { srcUrl, serverId, server };
+        await applyPendingMediaHostRetryUi();
+        return;
+      }
+
+      notifyMediaHostPermissionDenied(srcUrl);
+      return;
+    }
+  }
+
+  await clearMediaHostRetryState();
+  void startGallerySave(srcUrl, serverId, tabPayload);
+}
+
+function resolveMediaHostRetryServer() {
+  if (mediaHostRetryTarget?.server) {
+    return mediaHostRetryTarget.server;
+  }
+
+  if (mediaHostRetryTarget?.serverId && galleryServersCache) {
+    return findServerById(galleryServersCache, mediaHostRetryTarget.serverId);
+  }
+
+  return null;
+}
+
+/** Must run synchronously inside a click handler (Firefox user-gesture requirement). */
+function tryHandleGalleryMediaHostRetryClick(srcUrl) {
+  if (!mediaHostRetryTarget || mediaHostRetryTarget.srcUrl !== srcUrl) {
+    return false;
+  }
+
+  const server = resolveMediaHostRetryServer();
+
+  if (!server) {
+    return false;
+  }
+
+  runGalleryMediaHostPermissionRetry(srcUrl, mediaHostRetryTarget.serverId, server);
+  return true;
+}
+
+function triggerGallerySave(srcUrl, server) {
+  const serverId = server.id;
+  const isMediaHostRetry =
+    mediaHostRetryTarget?.srcUrl === srcUrl &&
+    mediaHostRetryTarget?.serverId === serverId;
+
+  if (isMediaHostRetry) {
+    runGalleryMediaHostPermissionRetry(srcUrl, serverId, server);
+    return;
+  }
+
+  void beginGallerySaveWithPermissions(srcUrl, serverId, server);
 }
 
 function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl }) {
@@ -1140,10 +1407,9 @@ function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl }) {
     item.classList.add("gallery-server-menu-item--on-page");
     item.setAttribute("aria-disabled", "true");
   } else {
-    const serverId = server.id;
     item.addEventListener("click", (event) => {
       event.stopPropagation();
-      beginGallerySaveWithPermissions(srcUrl, serverId, server);
+      triggerGallerySave(srcUrl, server);
     });
   }
 
@@ -1168,7 +1434,11 @@ async function openGalleryServerMenu(srcUrl, anchorEl) {
       return;
     }
 
-    clearPageMediaStatus();
+    const keepRetryStatus = mediaHostRetryTarget?.srcUrl === srcUrl;
+
+    if (!keepRetryStatus) {
+      clearPageMediaStatus();
+    }
 
     for (const server of available) {
       appendGalleryServerMenuItem(server, configured, { disabled: false, srcUrl });
@@ -1191,10 +1461,39 @@ async function openGalleryServerMenu(srcUrl, anchorEl) {
   }
 }
 
+async function handleGallerySaveTrigger(srcUrl, anchorEl) {
+  let allServers = galleryServersCache;
+
+  if (!allServers) {
+    allServers = await getServersFromStorage();
+    galleryServersCache = allServers;
+  }
+
+  const { configured, available, onPage } = partitionServersForPage(
+    galleryPageUrl,
+    allServers
+  );
+
+  if (configured.length === 0) {
+    return;
+  }
+
+  if (available.length === 0 && onPage.length === 0) {
+    return;
+  }
+
+  if (available.length === 1) {
+    triggerGallerySave(srcUrl, available[0]);
+    return;
+  }
+
+  await openGalleryServerMenu(srcUrl, anchorEl);
+}
+
 function bindGallerySaveTrigger(element, srcUrl, anchorEl) {
   let openGuardUntil = 0;
 
-  const openMenu = (event) => {
+  const onSaveTrigger = (event) => {
     event.preventDefault();
     event.stopPropagation();
 
@@ -1204,15 +1503,14 @@ function bindGallerySaveTrigger(element, srcUrl, anchorEl) {
     }
     openGuardUntil = now + 300;
 
-    void openGalleryServerMenu(srcUrl, anchorEl);
+    if (tryHandleGalleryMediaHostRetryClick(srcUrl)) {
+      return;
+    }
+
+    void handleGallerySaveTrigger(srcUrl, anchorEl);
   };
 
-  element.addEventListener("click", openMenu);
-  element.addEventListener("pointerup", (event) => {
-    if (event.button === 0) {
-      openMenu(event);
-    }
-  });
+  element.addEventListener("click", onSaveTrigger);
 }
 
 function getPopupChoiceFullLabel(mediaKind) {
@@ -1268,6 +1566,7 @@ function createSplitChoiceOverlay(cell, displayUrl, uploadUrl, mediaKind) {
 
 function renderPageMediaGallery(items) {
   hideGalleryHoverPreview();
+  clearAllGalleryItemUploadFeedback();
   pageMediaHost.replaceChildren();
 
   if (items.length === 0) {
@@ -1454,9 +1753,12 @@ async function refreshPopup() {
   try {
     try {
       const servers = await getServersFromStorage();
+
+      galleryServersCache = servers;
       renderServerLinks(getDistinctBooruInstances(servers));
     } catch (err) {
       console.warn("Failed to load configured servers:", err);
+      galleryServersCache = null;
       renderServerLinks([]);
     }
 
@@ -1491,11 +1793,17 @@ document.addEventListener("keydown", (event) => {
 });
 
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area !== "local" || !Object.prototype.hasOwnProperty.call(changes, "servers")) {
+  if (area !== "local" || !changes.servers) {
     return;
   }
 
   void refreshPopup();
+});
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    void refreshPopup();
+  }
 });
 
 function bindGalleryToolbarDetails() {

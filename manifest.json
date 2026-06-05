@@ -1,5 +1,5 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extensionName__",
   "version": "1.1",
@@ -8,6 +8,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "save-to-blombooru@foo",
+      "strict_min_version": "121.0",
       "data_collection_permissions": {
         "required": ["none"]
       }
@@ -15,33 +16,30 @@
   },
 
   "permissions": [
+    "activeTab",
     "contextMenus",
     "storage",
     "tabs",
-    "scripting",
-    "<all_urls>",
-    "notifications"
+    "notifications",
+    "scripting"
   ],
 
-  "optional_permissions": [
-    "http://*/",
-    "https://*/"
-  ],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
 
   "background": {
+    "service_worker": "background-sw.js",
     "scripts": [
       "browser.js",
       "permissions.js",
       "tab-scripting.js",
+      "media-context.js",
       "servers.js",
       "auth.js",
-      "media-context.js",
       "background.js"
-    ],
-    "persistent": true
+    ]
   },
 
-  "browser_action": {
+  "action": {
     "default_icon": "icon.png",
     "default_title": "__MSG_browserActionTitle__",
     "default_popup": "popup.html"
@@ -49,8 +47,7 @@
 
   "options_ui": {
     "page": "options.html",
-    "open_in_tab": false,
-    "browser_style": true
+    "open_in_tab": false
   },
 
   "icons": {

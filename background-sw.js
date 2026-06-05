@@ -1,4 +1,5 @@
-// Chrome MV3 entry; listed in manifest.chrome.json only.
+// Chromium MV3 service worker entry (importScripts chain).
+// Firefox/Gecko uses background.scripts in the manifest (see background-modules.json).
 importScripts(
   "browser.js",
   "permissions.js",

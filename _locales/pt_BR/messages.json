@@ -50,6 +50,12 @@
   "popupGalleryUpload": {
     "message": "Enviar"
   },
+  "popupGalleryUploadSuccess": {
+    "message": "✓ Salvo"
+  },
+  "popupGalleryUploadFailed": {
+    "message": "✗ Falhou"
+  },
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Resolução desconhecida"
   },
@@ -305,6 +311,33 @@
   },
   "errorUploadHostPermission": {
     "message": "Envio cancelado: permita o acesso ao seu servidor Blombooru quando solicitado."
+  },
+  "errorUploadMediaHostPermission": {
+    "message": "Envio cancelado: permita o acesso a $1$ (o host desta imagem) quando solicitado.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
+  },
+  "notifyGrantMediaHostPermissionPopup": {
+    "message": "Esta imagem precisa de acesso a $1$. No popup da extensão, clique na imagem novamente e escolha seu servidor para permitir o acesso.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
+  },
+  "popupMediaHostRetryPrompt": {
+    "message": "Clique na imagem destacada e escolha seu servidor novamente para permitir acesso a $1$.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
   },
   "errorUploadMethodNotAllowed": {
     "message": "Falha no envio: método não permitido. Verifique a URL base do Blombooru."

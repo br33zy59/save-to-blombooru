@@ -113,6 +113,37 @@
       margin-bottom: 0.35em;
     }
 
+    .server-status-block--permission-required {
+      margin-top: 0.35em;
+      padding: 0.75em 1em;
+      border: 1px solid color-mix(in srgb, CanvasText 25%, transparent);
+      border-radius: 0.5em;
+      background: color-mix(in srgb, Canvas 92%, Highlight 8%);
+    }
+
+    .field-status.permission-required {
+      color: light-dark(#c62828, #ff8a80);
+      font-weight: 600;
+      animation: permission-required-pulse 1.2s ease-in-out infinite;
+    }
+
+    @keyframes permission-required-pulse {
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .field-status.permission-required {
+        animation: none;
+      }
+    }
+
     .grant-access {
       margin-top: 0;
     }
@@ -191,6 +222,7 @@
       justify-content: flex-end;
       gap: 0.5em;
     }
+
   </style>
 </head>
 <body>

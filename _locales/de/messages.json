@@ -50,6 +50,12 @@
   "popupGalleryUpload": {
     "message": "Hochladen"
   },
+  "popupGalleryUploadSuccess": {
+    "message": "✓ Gespeichert"
+  },
+  "popupGalleryUploadFailed": {
+    "message": "✗ Fehlgeschlagen"
+  },
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Auflösung unbekannt"
   },
@@ -305,6 +311,33 @@
   },
   "errorUploadHostPermission": {
     "message": "Upload abgebrochen: Erlauben Sie den Zugriff auf Ihren Blombooru-Server, wenn Sie dazu aufgefordert werden."
+  },
+  "errorUploadMediaHostPermission": {
+    "message": "Upload abgebrochen: Erlauben Sie den Zugriff auf $1$ (Host dieses Bildes), wenn Sie dazu aufgefordert werden.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
+  },
+  "notifyGrantMediaHostPermissionPopup": {
+    "message": "Für dieses Bild wird Zugriff auf $1$ benötigt. Klicken Sie im Erweiterungs-Popup erneut auf das Bild und wählen Sie Ihren Server, um den Zugriff zu erlauben.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
+  },
+  "popupMediaHostRetryPrompt": {
+    "message": "Klicken Sie auf das hervorgehobene Bild und wählen Sie Ihren Server erneut, um Zugriff auf $1$ zu erlauben.",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "i.ytimg.com"
+      }
+    }
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload fehlgeschlagen: Methode nicht erlaubt. Prüfen Sie die Blombooru-Basis-URL."

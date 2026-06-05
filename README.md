@@ -44,30 +44,22 @@ Failed uploads show a notification with the error.
 
 Clone or download this repository.
 
-**Firefox**
+**Firefox or Chrome**
 
-You can just load the extension directly from the repository folder:
+Build/stage before loading (you need **node** and **tar** at the command line):
 
-1. Open `about:debugging` → **This Firefox** → **Load Temporary Add-on…**
-2. Choose `manifest.json` in the project folder.
+```
+node scripts/build.mjs firefox   # or: chrome
+```
 
-**Chrome**
+1. **Firefox / LibreWolf:** `about:debugging` → **This Firefox** → **Load Temporary Add-on…** → choose `build/staging-firefox/manifest.json`. Requires **Firefox 121+** (Gecko uses `background.scripts`; Chromium uses the service worker — both are declared in the manifest).
+2. **Chrome / Edge:** `chrome://extensions` or `edge://extensions` → **Developer mode** → **Load unpacked** → `build/staging-chrome` (Chrome 121+ ignores `background.scripts` and uses `background-sw.js`).
 
-You need to build/stage before you can load the extension. You'll need **node** (node.js) and **tar** available at the command line.
+After changing background or popup code, run the build again and reload the extension.
 
-1. From a terminal session within the repository folder, run:
-    ```
-    node scripts/build.mjs chrome
-    ```
+Note: Temporary loads do not persist across browser restarts.
 
-2. Open `chrome://extensions` (or `edge://extensions` in Edge), enable **Developer mode**.
-3. **Load unpacked** → select `build/staging-chrome` (not the repo root).
-
-After changing popup or background code, run `node scripts/build.mjs chrome` again and click **Reload** on the extension card.
-
-Note: Temporary extension loads like these do not persist across browser restarts.
-
-The Chrome build uses `activeTab` plus **optional** host access (prompted for your Blombooru URL in options and on first upload). It does not request `<all_urls>` at install time. Firefox keeps broad host access in its manifest.
+Both builds use **`activeTab`** plus **optional** host access (`http://*/*`, `https://*/*`), prompted when you configure your Blombooru URL in options or on first upload to a new origin. Neither build requests `<all_urls>` at install time.
 
 ### Building packages
 
@@ -91,9 +83,10 @@ The `build/` directory is git-ignored. ZIPs use `tar` so paths use forward slash
 
 ```
 save-to-blombooru/
-├── manifest.json          # Firefox MV2 (dev + AMO build)
-├── manifest.chrome.json   # Chrome MV3 (build only → staging-chrome/manifest.json)
-├── background-sw.js       # Chrome service worker entry (importScripts chain)
+├── manifest.json          # Firefox MV3 (AMO → staging-firefox/manifest.json)
+├── manifest.chrome.json   # Chrome MV3 (→ staging-chrome/manifest.json)
+├── background-modules.json # Ordered background modules (Firefox scripts; validated vs background-sw.js)
+├── background-sw.js       # Chromium service worker entry (importScripts chain)
 ├── browser.js             # browser/chrome shim
 ├── background.js          # Context menu, uploads, notifications
 ├── auth.js                # API auth and connection test

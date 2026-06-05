@@ -1,4 +1,4 @@
-// Injected via tabs.executeScript to read alt/caption text for the clicked media URL.
+// Injected via scripting.executeScript to read alt/caption text for the clicked media URL.
 
 function extractMediaCaptionInPage(srcUrl) {
   function normalizeMediaUrl(url) {
@@ -176,9 +176,78 @@ async function extractMediaBlobInPage(srcUrl) {
     };
   }
 
+  function imageElementForMediaNode(mediaEl) {
+    if (mediaEl instanceof HTMLImageElement) {
+      return mediaEl;
+    }
+
+    if (mediaEl instanceof HTMLPictureElement) {
+      return mediaEl.querySelector("img");
+    }
+
+    if (mediaEl instanceof HTMLSourceElement) {
+      return mediaEl.closest("picture")?.querySelector("img") || null;
+    }
+
+    return null;
+  }
+
+  async function ensureImageReady(img) {
+    if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      return true;
+    }
+
+    try {
+      await img.decode();
+    } catch (e) {
+      // decode() rejects for broken images; fall through to loaded check.
+    }
+
+    return img.complete && img.naturalWidth > 0 && img.naturalHeight > 0;
+  }
+
+  function canvasToBlob(canvas, mimeType) {
+    return new Promise((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), mimeType);
+    });
+  }
+
+  async function blobFromCanvas(canvas, preferType) {
+    let blob = await canvasToBlob(canvas, preferType);
+
+    if (!blob && preferType !== "image/png") {
+      blob = await canvasToBlob(canvas, "image/png");
+    }
+
+    return blob;
+  }
+
   async function blobFromImageElement(img) {
-    if (!img.naturalWidth || !img.naturalHeight) {
+    if (!(await ensureImageReady(img))) {
       return null;
+    }
+
+    const outputType = /\.webp(\?|$)/i.test(img.currentSrc || img.src)
+      ? "image/webp"
+      : "image/png";
+
+    if (typeof createImageBitmap === "function") {
+      try {
+        const bitmap = await createImageBitmap(img);
+
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          canvas.getContext("2d").drawImage(bitmap, 0, 0);
+          bitmap.close();
+          return blobFromCanvas(canvas, outputType);
+        } catch (e) {
+          bitmap.close();
+        }
+      } catch (e) {
+        // Tainted or unsupported — try direct canvas below.
+      }
     }
 
     const canvas = document.createElement("canvas");
@@ -191,9 +260,7 @@ async function extractMediaBlobInPage(srcUrl) {
       return null;
     }
 
-    return new Promise((resolve) => {
-      canvas.toBlob((blob) => resolve(blob), "image/png");
-    });
+    return blobFromCanvas(canvas, outputType);
   }
 
   const targetUrl = normalizeMediaUrl(srcUrl);
@@ -226,8 +293,14 @@ async function extractMediaBlobInPage(srcUrl) {
     return null;
   }
 
-  if (mediaEl instanceof HTMLImageElement) {
-    return blobToPayload(await blobFromImageElement(mediaEl));
+  const imageEl = imageElementForMediaNode(mediaEl);
+
+  if (imageEl) {
+    const blob = await blobFromImageElement(imageEl);
+
+    if (blob) {
+      return blobToPayload(blob);
+    }
   }
 
   if (mediaEl instanceof HTMLVideoElement) {
