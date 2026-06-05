@@ -53,6 +53,85 @@
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Resolution unknown"
   },
+  "popupGalleryFilterLabel": {
+    "message": "Show"
+  },
+  "popupGallerySortLabel": {
+    "message": "Sort"
+  },
+  "popupGalleryFilterAll": {
+    "message": "All media"
+  },
+  "popupGalleryFilterImages": {
+    "message": "Images only"
+  },
+  "popupGalleryFilterAnimations": {
+    "message": "Animations only"
+  },
+  "popupGalleryFilterVideos": {
+    "message": "Videos only"
+  },
+  "popupGallerySortDocument": {
+    "message": "Page order"
+  },
+  "popupGallerySortName": {
+    "message": "Name"
+  },
+  "popupGallerySortPixels": {
+    "message": "Pixel size"
+  },
+  "popupGallerySortFileType": {
+    "message": "File type"
+  },
+  "popupGallerySortAscDocument": {
+    "message": "Page order (first → last)"
+  },
+  "popupGallerySortDescDocument": {
+    "message": "Page order (last → first)"
+  },
+  "popupGallerySortAscName": {
+    "message": "Name (A → Z)"
+  },
+  "popupGallerySortDescName": {
+    "message": "Name (Z → A)"
+  },
+  "popupGallerySortAscPixels": {
+    "message": "Pixel size (small → large)"
+  },
+  "popupGallerySortDescPixels": {
+    "message": "Pixel size (large → small)"
+  },
+  "popupGallerySortAscFileType": {
+    "message": "File type (A → Z)"
+  },
+  "popupGallerySortDescFileType": {
+    "message": "File type (Z → A)"
+  },
+  "popupGalleryNoFilterMatches": {
+    "message": "No items match this filter."
+  },
+  "popupGalleryCountAll": {
+    "message": "$1$ items",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "popupGalleryCountFiltered": {
+    "message": "$1$ of $2$ items",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "12"
+      },
+      "2": {
+        "content": "$2",
+        "example": "42"
+      }
+    }
+  },
   "headingServerDetails": {
     "message": "Server Details"
   },

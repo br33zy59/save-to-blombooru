@@ -53,6 +53,85 @@
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Resolución desconocida"
   },
+  "popupGalleryFilterLabel": {
+    "message": "Mostrar"
+  },
+  "popupGallerySortLabel": {
+    "message": "Ordenar"
+  },
+  "popupGalleryFilterAll": {
+    "message": "Todos los medios"
+  },
+  "popupGalleryFilterImages": {
+    "message": "Solo imágenes"
+  },
+  "popupGalleryFilterAnimations": {
+    "message": "Solo animaciones"
+  },
+  "popupGalleryFilterVideos": {
+    "message": "Solo vídeos"
+  },
+  "popupGallerySortDocument": {
+    "message": "Orden de la página"
+  },
+  "popupGallerySortName": {
+    "message": "Nombre"
+  },
+  "popupGallerySortPixels": {
+    "message": "Tamaño en píxeles"
+  },
+  "popupGallerySortFileType": {
+    "message": "Tipo de archivo"
+  },
+  "popupGallerySortAscDocument": {
+    "message": "Orden de página (primero → último)"
+  },
+  "popupGallerySortDescDocument": {
+    "message": "Orden de página (último → primero)"
+  },
+  "popupGallerySortAscName": {
+    "message": "Nombre (A → Z)"
+  },
+  "popupGallerySortDescName": {
+    "message": "Nombre (Z → A)"
+  },
+  "popupGallerySortAscPixels": {
+    "message": "Píxeles (pequeño → grande)"
+  },
+  "popupGallerySortDescPixels": {
+    "message": "Píxeles (grande → pequeño)"
+  },
+  "popupGallerySortAscFileType": {
+    "message": "Tipo (A → Z)"
+  },
+  "popupGallerySortDescFileType": {
+    "message": "Tipo (Z → A)"
+  },
+  "popupGalleryNoFilterMatches": {
+    "message": "Ningún elemento coincide con este filtro."
+  },
+  "popupGalleryCountAll": {
+    "message": "$1$ elementos",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "popupGalleryCountFiltered": {
+    "message": "$1$ de $2$ elementos",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "12"
+      },
+      "2": {
+        "content": "$2",
+        "example": "42"
+      }
+    }
+  },
   "headingServerDetails": {
     "message": "Detalles del servidor"
   },

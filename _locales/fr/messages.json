@@ -53,6 +53,85 @@
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Résolution inconnue"
   },
+  "popupGalleryFilterLabel": {
+    "message": "Afficher"
+  },
+  "popupGallerySortLabel": {
+    "message": "Trier"
+  },
+  "popupGalleryFilterAll": {
+    "message": "Tous les médias"
+  },
+  "popupGalleryFilterImages": {
+    "message": "Images seulement"
+  },
+  "popupGalleryFilterAnimations": {
+    "message": "Animations seulement"
+  },
+  "popupGalleryFilterVideos": {
+    "message": "Vidéos seulement"
+  },
+  "popupGallerySortDocument": {
+    "message": "Ordre de la page"
+  },
+  "popupGallerySortName": {
+    "message": "Nom"
+  },
+  "popupGallerySortPixels": {
+    "message": "Taille en pixels"
+  },
+  "popupGallerySortFileType": {
+    "message": "Type de fichier"
+  },
+  "popupGallerySortAscDocument": {
+    "message": "Ordre de la page (début → fin)"
+  },
+  "popupGallerySortDescDocument": {
+    "message": "Ordre de la page (fin → début)"
+  },
+  "popupGallerySortAscName": {
+    "message": "Nom (A → Z)"
+  },
+  "popupGallerySortDescName": {
+    "message": "Nom (Z → A)"
+  },
+  "popupGallerySortAscPixels": {
+    "message": "Pixels (petit → grand)"
+  },
+  "popupGallerySortDescPixels": {
+    "message": "Pixels (grand → petit)"
+  },
+  "popupGallerySortAscFileType": {
+    "message": "Type (A → Z)"
+  },
+  "popupGallerySortDescFileType": {
+    "message": "Type (Z → A)"
+  },
+  "popupGalleryNoFilterMatches": {
+    "message": "Aucun élément ne correspond à ce filtre."
+  },
+  "popupGalleryCountAll": {
+    "message": "$1$ éléments",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "42"
+      }
+    }
+  },
+  "popupGalleryCountFiltered": {
+    "message": "$1$ sur $2$ éléments",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "12"
+      },
+      "2": {
+        "content": "$2",
+        "example": "42"
+      }
+    }
+  },
   "headingServerDetails": {
     "message": "Détails du serveur"
   },

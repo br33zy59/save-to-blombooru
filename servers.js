@@ -19,8 +19,23 @@ async function getServersFromStorage() {
   return data.servers.filter((entry) => entry && entry.id);
 }
 
+/** Merge into storage.local without dropping unrelated keys (required for safe partial writes). */
+async function mergeStorageLocal(updates) {
+  const existing = await browser.storage.local.get(null);
+
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined) {
+      delete existing[key];
+    } else {
+      existing[key] = value;
+    }
+  }
+
+  await browser.storage.local.set(existing);
+}
+
 async function saveServersToStorage(servers) {
-  await browser.storage.local.set({ servers });
+  await mergeStorageLocal({ servers });
 }
 
 function findServerById(servers, serverId) {

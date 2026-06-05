@@ -843,21 +843,83 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
   const items = [];
   const seen = new Set();
 
+  let documentOrder = 0;
+
+  /** True when candidate is the on-page full for a thumb+full gallery entry. */
+  function isFoldedFullDuplicate(candidateItem, hostItem) {
+    if (!hostItem?.fullUrlAvailable || !hostItem.uploadUrl) {
+      return false;
+    }
+
+    if (urlsReferToSameMedia(candidateItem.displayUrl, hostItem.uploadUrl)) {
+      return true;
+    }
+
+    if (
+      candidateItem.uploadUrl &&
+      urlsReferToSameMedia(candidateItem.uploadUrl, hostItem.uploadUrl)
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  function enrichWithFullOnPageMetadata(host, fullCandidate) {
+    const fullW = fullCandidate.intrinsicWidth || 0;
+    const fullH = fullCandidate.intrinsicHeight || 0;
+
+    if (fullW > 0) {
+      host.fullIntrinsicWidth = fullW;
+    }
+
+    if (fullH > 0) {
+      host.fullIntrinsicHeight = fullH;
+    }
+
+    host.fullOnPage = true;
+  }
+
   function addItem(item) {
-    if (!item || seen.has(item.displayUrl)) {
+    if (!item) {
+      return;
+    }
+
+    for (const existing of items) {
+      if (isFoldedFullDuplicate(item, existing)) {
+        enrichWithFullOnPageMetadata(existing, item);
+        return;
+      }
+    }
+
+    if (item.fullUrlAvailable && item.uploadUrl) {
+      for (let i = items.length - 1; i >= 0; i--) {
+        const existing = items[i];
+
+        if (!existing.fullUrlAvailable && isFoldedFullDuplicate(existing, item)) {
+          enrichWithFullOnPageMetadata(item, existing);
+          seen.delete(existing.displayUrl);
+          items.splice(i, 1);
+        }
+      }
+    }
+
+    if (seen.has(item.displayUrl)) {
       return;
     }
 
     seen.add(item.displayUrl);
+    item.documentOrder = documentOrder;
+    documentOrder += 1;
     items.push(item);
   }
 
-  for (const img of document.querySelectorAll("img")) {
-    addItem(buildImageItem(img));
-  }
-
-  for (const video of document.querySelectorAll("video")) {
-    addItem(buildVideoItem(video));
+  for (const el of document.querySelectorAll("img, video")) {
+    if (el instanceof HTMLImageElement) {
+      addItem(buildImageItem(el));
+    } else if (el instanceof HTMLVideoElement) {
+      addItem(buildVideoItem(el));
+    }
   }
 
   return { items };
