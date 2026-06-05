@@ -12,11 +12,12 @@ You'll need:
 - **Firefox**, **Chrome**, or a derivative (e.g. Edge, LibreWolf) that supports extensions.
 - A working **Blombooru** installation on your LAN or reachable over the Internet.
 
-Click the appropriate web store below to install for your browser:
+Click the appropriate link below to install for your browser:
 
-[![Available in the Chrome Web Store](assets/chrome-badge.png)](https://chromewebstore.google.com/detail/save-to-blombooru/mhnaejinolnamebgpomkpbmdhjhnhlji)
+[![Install on Chrome](https://img.shields.io/badge/Install%20on-Chrome-4285F4?logo=googlechrome&logoColor=white&style=for-the-badge)](https://chromewebstore.google.com/detail/mhnaejinolnamebgpomkpbmdhjhnhlji)
 
-**(addons.mozilla.org approval pending)**
+[![Install on Firefox](https://img.shields.io/badge/Install%20on-Firefox-FF7139?logo=firefoxbrowser&logoColor=white&style=for-the-badge)](https://addons.mozilla.org/en-US/firefox/addon/save-to-blombooru@foo/)
+
 
 ### Configure Blombooru
 
@@ -52,8 +53,8 @@ Build/stage before loading (you need **node** and **tar** at the command line):
 node scripts/build.mjs firefox   # or: chrome
 ```
 
-1. **Firefox / LibreWolf:** `about:debugging` → **This Firefox** → **Load Temporary Add-on…** → choose `build/staging-firefox/manifest.json`. Requires **Firefox 121+** (Gecko uses `background.scripts`; Chromium uses the service worker — both are declared in the manifest).
-2. **Chrome / Edge:** `chrome://extensions` or `edge://extensions` → **Developer mode** → **Load unpacked** → `build/staging-chrome` (Chrome 121+ ignores `background.scripts` and uses `background-sw.js`).
+1. **Firefox / LibreWolf:** `about:debugging` → **This Firefox** → **Load Temporary Add-on…** → choose `build/staging-firefox/manifest.json`. Requires **Firefox 140+** (uses `background.scripts`).
+2. **Chrome / Edge:** `chrome://extensions` or `edge://extensions` → **Developer mode** → **Load unpacked** → `build/staging-chrome` (Chrome 121+; uses `background-sw.js` service worker).
 
 After changing background or popup code, run the build again and reload the extension.
 

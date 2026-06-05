@@ -8,7 +8,7 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "save-to-blombooru@foo",
-      "strict_min_version": "121.0",
+      "strict_min_version": "140.0",
       "data_collection_permissions": {
         "required": ["none"]
       }
@@ -27,7 +27,6 @@
   "optional_host_permissions": ["http://*/*", "https://*/*"],
 
   "background": {
-    "service_worker": "background-sw.js",
     "scripts": [
       "browser.js",
       "permissions.js",

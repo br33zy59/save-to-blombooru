@@ -62,10 +62,16 @@ function validateBackgroundModuleList() {
   return modules;
 }
 
-function applyBackgroundToManifest(manifest) {
+function applyBackgroundToManifest(manifest, targetName) {
+  if (targetName === "firefox") {
+    manifest.background = {
+      scripts: loadBackgroundModuleList()
+    };
+    return;
+  }
+
   manifest.background = {
-    service_worker: SERVICE_WORKER_ENTRY,
-    scripts: loadBackgroundModuleList()
+    service_worker: SERVICE_WORKER_ENTRY
   };
 }
 
@@ -151,7 +157,7 @@ function buildTarget(targetName) {
   mkdirSync(stagingDir, { recursive: true });
 
   const manifest = JSON.parse(readFileSync(join(root, target.manifest), "utf8"));
-  applyBackgroundToManifest(manifest);
+  applyBackgroundToManifest(manifest, targetName);
   writeFileSync(
     join(stagingDir, "manifest.json"),
     `${JSON.stringify(manifest, null, 2)}\n`,
@@ -162,7 +168,9 @@ function buildTarget(targetName) {
     cpSync(join(root, file), join(stagingDir, file));
   }
 
-  cpSync(join(root, SERVICE_WORKER_ENTRY), join(stagingDir, SERVICE_WORKER_ENTRY));
+  if (targetName === "chrome") {
+    cpSync(join(root, SERVICE_WORKER_ENTRY), join(stagingDir, SERVICE_WORKER_ENTRY));
+  }
 
   cpSync(join(root, "_locales"), join(stagingDir, "_locales"), { recursive: true });
 
