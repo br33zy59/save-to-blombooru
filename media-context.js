@@ -201,6 +201,17 @@ async function extractMediaBlobInPage(srcUrl) {
     return null;
   }
 
+  if (/^data:/i.test(targetUrl)) {
+    try {
+      const response = await fetch(targetUrl);
+      if (response.ok) {
+        return blobToPayload(await response.blob());
+      }
+    } catch (e) {
+      return null;
+    }
+  }
+
   try {
     const response = await fetch(targetUrl);
     if (response.ok) {
@@ -313,6 +324,10 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
   }
 
   function looksLikeDirectImageUrl(href) {
+    if (/^data:image\//i.test(href)) {
+      return true;
+    }
+
     try {
       const path = new URL(href).pathname;
       return /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|$)/i.test(path);
@@ -322,6 +337,10 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
   }
 
   function looksLikeDirectVideoUrl(href) {
+    if (/^data:video\//i.test(href)) {
+      return true;
+    }
+
     try {
       const path = new URL(href).pathname;
       return BOORU_VIDEO_EXT_RE.test(path);
@@ -344,6 +363,18 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
   }
 
   function filenameFromUrl(href) {
+    if (/^data:image\/(\w+)/i.test(href)) {
+      const subtype = href.match(/^data:image\/(\w+)/i)[1].toLowerCase();
+
+      return subtype === "jpeg" ? "image.jpg" : `image.${subtype}`;
+    }
+
+    if (/^data:video\/(\w+)/i.test(href)) {
+      const subtype = href.match(/^data:video\/(\w+)/i)[1].toLowerCase();
+
+      return `video.${subtype}`;
+    }
+
     try {
       const name = new URL(href).pathname.split("/").pop();
       if (name) {

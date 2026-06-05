@@ -334,6 +334,9 @@
       }
     }
   },
+  "errorUnsupportedUploadFormat": {
+    "message": "Dieser Dateityp kann nicht hochgeladen werden. Blombooru akzeptiert JPG, PNG, WEBP, GIF, MP4 und WEBM."
+  },
   "notificationUploadFailedTitle": {
     "message": "Upload fehlgeschlagen"
   }

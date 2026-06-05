@@ -101,9 +101,14 @@ function createServerManager(serverId, elements, onStateChange) {
       }
 
       let originPattern;
+
       try {
         originPattern = originPatternFromUrl(booruUrl);
       } catch (e) {
+        originPattern = null;
+      }
+
+      if (!originPattern) {
         showUrlStatus(browser.i18n.getMessage("errorInvalidUrl"), "error");
         connectionValid = false;
         setGrantAccessVisible(false);

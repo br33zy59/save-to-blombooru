@@ -12,9 +12,11 @@ You'll need:
 - **Firefox**, **Chrome**, or a derivative (e.g. Edge, LibreWolf) that supports extensions.
 - A working **Blombooru** installation on your LAN or reachable over the Internet.
 
-Click the appropriate extension icon below to install for your browser:
-- **addons.mozilla.org approval pending**
-- **Chrome Web Store approval pending**
+Click the appropriate web store below to install for your browser:
+
+[![Available in the Chrome Web Store](assets/chrome-badge.png)](https://chromewebstore.google.com/detail/save-to-blombooru/mhnaejinolnamebgpomkpbmdhjhnhlji)
+
+**(addons.mozilla.org approval pending)**
 
 ### Configure Blombooru
 

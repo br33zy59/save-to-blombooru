@@ -89,6 +89,12 @@ let galleryLastSortKey = GALLERY_SORT_DOCUMENT;
 let pageGalleryRefreshId = 0;
 let popupRefreshInFlight = false;
 
+const GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS = 220;
+const galleryRemoteFullPreviewCache = new Map();
+let galleryHoverPreviewSession = 0;
+let galleryHoverPreviewContext = null;
+let galleryRemoteFullPreviewTimer = null;
+
 function defaultSortAscending(sortKey) {
   return sortKey !== GALLERY_SORT_PIXELS;
 }
@@ -493,7 +499,113 @@ async function getActiveTab() {
   return fallbackTab ?? null;
 }
 
+function clearGalleryRemoteFullPreviewTimer() {
+  if (galleryRemoteFullPreviewTimer != null) {
+    clearTimeout(galleryRemoteFullPreviewTimer);
+    galleryRemoteFullPreviewTimer = null;
+  }
+}
+
+function revokeGalleryRemoteFullPreviewCache() {
+  for (const entry of galleryRemoteFullPreviewCache.values()) {
+    if (entry.objectUrl) {
+      URL.revokeObjectURL(entry.objectUrl);
+    }
+  }
+
+  galleryRemoteFullPreviewCache.clear();
+}
+
+function base64ToPreviewBlob(base64, mimeType) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mimeType || "application/octet-stream" });
+}
+
+async function ensureGalleryRemoteFullPreview(uploadUrl, kind) {
+  const cached = galleryRemoteFullPreviewCache.get(uploadUrl);
+
+  if (cached) {
+    return cached;
+  }
+
+  const response = await browser.runtime.sendMessage({
+    type: "fetchGalleryPreviewMedia",
+    payload: {
+      tabId: gallerySourceTabId,
+      srcUrl: uploadUrl
+    }
+  });
+
+  if (!response?.ok || !response.base64) {
+    return null;
+  }
+
+  const blob = base64ToPreviewBlob(response.base64, response.mimeType);
+  const objectUrl = URL.createObjectURL(blob);
+  const useVideo = kind === "video" && isDirectVideoPreviewUrl(uploadUrl);
+  const entry = {
+    objectUrl,
+    width: response.width || 0,
+    height: response.height || 0,
+    useVideo
+  };
+
+  galleryRemoteFullPreviewCache.set(uploadUrl, entry);
+  return entry;
+}
+
+function scheduleGalleryRemoteFullPreviewUpgrade(context) {
+  clearGalleryRemoteFullPreviewTimer();
+
+  galleryRemoteFullPreviewTimer = window.setTimeout(() => {
+    galleryRemoteFullPreviewTimer = null;
+
+    if (!galleryHoverPreviewContext || galleryHoverPreviewContext.token !== context.token) {
+      return;
+    }
+
+    void (async () => {
+      const entry = await ensureGalleryRemoteFullPreview(context.uploadUrl, context.kind);
+
+      if (!galleryHoverPreviewContext || galleryHoverPreviewContext.token !== context.token) {
+        return;
+      }
+
+      if (!entry) {
+        return;
+      }
+
+      let previewWidth = entry.width;
+      let previewHeight = entry.height;
+
+      if (entry.useVideo && (!previewWidth || !previewHeight)) {
+        previewWidth = context.intrinsicWidth;
+        previewHeight = context.intrinsicHeight;
+      }
+
+      showGalleryHoverPreview(
+        entry.objectUrl,
+        context.altText,
+        previewWidth,
+        previewHeight,
+        false,
+        context.labelUrl,
+        entry.useVideo
+      );
+    })();
+  }, GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS);
+}
+
 function hideGalleryHoverPreview() {
+  clearGalleryRemoteFullPreviewTimer();
+  galleryHoverPreviewContext = null;
+
   galleryHoverPreview.classList.remove("gallery-hover-preview--visible");
   galleryHoverPreview.hidden = true;
   galleryHoverPreview.setAttribute("aria-hidden", "true");
@@ -752,16 +864,41 @@ function bindGalleryHoverPreview(cell, item) {
     const hoveringFullTarget = Boolean(event.target.closest(".media-choice-half--full"));
     const labelUrl = fullUrlAvailable && hoveringFullTarget ? uploadUrl : displayUrl;
     const showFullOnPage = Boolean(fullUrlAvailable && hoveringFullTarget && fullOnPage);
-    const dimensionsUnknown = Boolean(fullUrlAvailable && hoveringFullTarget && !showFullOnPage);
-    const previewUrl = showFullOnPage ? uploadUrl : displayUrl;
-    const previewWidth = showFullOnPage
-      ? fullIntrinsicWidth || intrinsicWidth
-      : intrinsicWidth;
-    const previewHeight = showFullOnPage
-      ? fullIntrinsicHeight || intrinsicHeight
-      : intrinsicHeight;
-    const useVideoPreview =
-      showFullOnPage && kind === "video" && isDirectVideoPreviewUrl(previewUrl);
+    const needsRemoteFull =
+      Boolean(fullUrlAvailable && hoveringFullTarget && !fullOnPage);
+    const cachedRemote = needsRemoteFull
+      ? galleryRemoteFullPreviewCache.get(uploadUrl)
+      : null;
+    const dimensionsUnknown = Boolean(needsRemoteFull && !cachedRemote);
+    const previewUrl = cachedRemote
+      ? cachedRemote.objectUrl
+      : showFullOnPage
+        ? uploadUrl
+        : displayUrl;
+    const previewWidth = cachedRemote
+      ? cachedRemote.width || intrinsicWidth
+      : showFullOnPage
+        ? fullIntrinsicWidth || intrinsicWidth
+        : intrinsicWidth;
+    const previewHeight = cachedRemote
+      ? cachedRemote.height || intrinsicHeight
+      : showFullOnPage
+        ? fullIntrinsicHeight || intrinsicHeight
+        : intrinsicHeight;
+    const useVideoPreview = cachedRemote
+      ? cachedRemote.useVideo
+      : showFullOnPage && kind === "video" && isDirectVideoPreviewUrl(uploadUrl);
+
+    const token = ++galleryHoverPreviewSession;
+    galleryHoverPreviewContext = {
+      token,
+      uploadUrl,
+      kind,
+      altText,
+      labelUrl,
+      intrinsicWidth,
+      intrinsicHeight
+    };
 
     showGalleryHoverPreview(
       previewUrl,
@@ -772,6 +909,12 @@ function bindGalleryHoverPreview(cell, item) {
       labelUrl,
       useVideoPreview
     );
+
+    if (needsRemoteFull && !cachedRemote) {
+      scheduleGalleryRemoteFullPreviewUpgrade(galleryHoverPreviewContext);
+    } else {
+      clearGalleryRemoteFullPreviewTimer();
+    }
   });
 }
 
@@ -847,6 +990,74 @@ function positionGalleryServerMenu(anchorEl) {
   galleryServerMenu.scrollIntoView({ block: "nearest", inline: "nearest" });
 }
 
+const PENDING_GALLERY_SAVE_KEY = "pendingGallerySave";
+
+function galleryMediaContextForSaveUrl(srcUrl) {
+  const item = galleryItems.find(
+    (entry) => entry.displayUrl === srcUrl || entry.uploadUrl === srcUrl
+  );
+
+  if (!item) {
+    return null;
+  }
+
+  return {
+    displayUrl: item.displayUrl,
+    uploadUrl: item.uploadUrl,
+    fullOnPage: Boolean(item.fullOnPage)
+  };
+}
+
+function gallerySavePermissionPatterns(srcUrl, server) {
+  const patterns = [];
+  const mediaContext = galleryMediaContextForSaveUrl(srcUrl);
+
+  if (shouldPromptForMediaHostPermission(srcUrl, galleryPageUrl, mediaContext)) {
+    const mediaPattern = originPatternFromUrl(srcUrl);
+
+    if (mediaPattern) {
+      patterns.push(mediaPattern);
+    }
+  }
+
+  try {
+    patterns.push(originPatternFromUrl(server.booruUrl));
+  } catch (err) {
+    // Ignore invalid booru URL.
+  }
+
+  return patterns;
+}
+
+function notifyGallerySavePermissionDenied() {
+  browser.notifications.create({
+    type: "basic",
+    iconUrl: browser.runtime.getURL("icon.png"),
+    title: browser.i18n.getMessage("notificationUploadFailedTitle"),
+    message: browser.i18n.getMessage("errorUploadHostPermission")
+  });
+}
+
+async function finishGallerySaveAfterPermissions(granted) {
+  if (!granted) {
+    await browser.storage.session.remove(PENDING_GALLERY_SAVE_KEY);
+    notifyGallerySavePermissionDenied();
+    return;
+  }
+
+  try {
+    const response = await browser.runtime.sendMessage({
+      type: "resumePendingGallerySave"
+    });
+
+    if (response && !response.ok) {
+      console.warn("Gallery save failed:", response.error);
+    }
+  } catch (err) {
+    console.warn("Gallery save resume failed:", err);
+  }
+}
+
 async function startGallerySave(srcUrl, serverId) {
   closeGalleryServerMenu();
 
@@ -857,7 +1068,13 @@ async function startGallerySave(srcUrl, serverId) {
         tabId: gallerySourceTabId,
         pageUrl: galleryPageUrl,
         srcUrl,
-        serverId
+        serverId,
+        booruPermissionsPreGranted: true,
+        mediaPermissionsPreGranted: !shouldPromptForMediaHostPermission(
+          srcUrl,
+          galleryPageUrl,
+          galleryMediaContextForSaveUrl(srcUrl)
+        )
       }
     });
 
@@ -867,6 +1084,45 @@ async function startGallerySave(srcUrl, serverId) {
   } catch (err) {
     console.warn("Gallery save message failed:", err);
   }
+}
+
+function beginGallerySaveWithPermissions(srcUrl, serverId, server) {
+  closeGalleryServerMenu();
+
+  if (hasInstallTimeBroadHostAccess()) {
+    void startGallerySave(srcUrl, serverId);
+    return;
+  }
+
+  const mediaContext = galleryMediaContextForSaveUrl(srcUrl);
+  const needsMediaHostPrompt = shouldPromptForMediaHostPermission(
+    srcUrl,
+    galleryPageUrl,
+    mediaContext
+  );
+  const pendingPayload = {
+    tabId: gallerySourceTabId,
+    pageUrl: galleryPageUrl,
+    srcUrl,
+    serverId,
+    booruPermissionsPreGranted: true,
+    mediaPermissionsPreGranted: !needsMediaHostPrompt
+  };
+
+  void browser.storage.session.set({ [PENDING_GALLERY_SAVE_KEY]: pendingPayload });
+
+  const permissionRequests = beginHostPermissionRequests(
+    gallerySavePermissionPatterns(srcUrl, server)
+  );
+
+  if (permissionRequests.length === 0) {
+    void finishGallerySaveAfterPermissions(true);
+    return;
+  }
+
+  void Promise.all(permissionRequests).then((results) => {
+    void finishGallerySaveAfterPermissions(results.every(Boolean));
+  });
 }
 
 function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl }) {
@@ -887,7 +1143,7 @@ function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl }) {
     const serverId = server.id;
     item.addEventListener("click", (event) => {
       event.stopPropagation();
-      startGallerySave(srcUrl, serverId);
+      beginGallerySaveWithPermissions(srcUrl, serverId, server);
     });
   }
 
@@ -1133,6 +1389,7 @@ galleryHoverPreviewPane.addEventListener("mouseleave", (event) => {
 
 async function refreshPageGallery() {
   const refreshId = ++pageGalleryRefreshId;
+  revokeGalleryRemoteFullPreviewCache();
   pageMediaSection.hidden = false;
   showPageMediaLoading();
 
@@ -1268,3 +1525,7 @@ void loadGalleryViewPrefs()
     console.warn("Popup init failed:", err);
     void refreshPopup();
   });
+
+window.addEventListener("pagehide", () => {
+  revokeGalleryRemoteFullPreviewCache();
+});

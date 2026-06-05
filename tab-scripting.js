@@ -3,14 +3,22 @@ function buildExecuteScriptCode(func, args) {
   return argList ? `(${func.toString()})(${argList})` : `(${func.toString()})()`;
 }
 
+function normalizeTabId(tabId) {
+  const id = Number(tabId);
+
+  return Number.isInteger(id) && id >= 0 ? id : -1;
+}
+
 async function runInTab(tabId, func, args = []) {
-  if (tabId < 0) {
+  const normalizedTabId = normalizeTabId(tabId);
+
+  if (normalizedTabId < 0) {
     return undefined;
   }
 
   if (browser.scripting?.executeScript) {
     const results = await browser.scripting.executeScript({
-      target: { tabId },
+      target: { tabId: normalizedTabId },
       func,
       args
     });
@@ -18,7 +26,7 @@ async function runInTab(tabId, func, args = []) {
   }
 
   // Firefox MV2 tabs.executeScript accepts code or file, not func/args.
-  const results = await browser.tabs.executeScript(tabId, {
+  const results = await browser.tabs.executeScript(normalizedTabId, {
     code: buildExecuteScriptCode(func, args)
   });
   return results?.[0];

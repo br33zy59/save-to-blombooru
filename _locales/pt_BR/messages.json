@@ -334,6 +334,9 @@
       }
     }
   },
+  "errorUnsupportedUploadFormat": {
+    "message": "Este tipo de arquivo não pode ser enviado. O Blombooru aceita JPG, PNG, WEBP, GIF, MP4 e WEBM."
+  },
   "notificationUploadFailedTitle": {
     "message": "Falha no envio"
   }
