@@ -1,4 +1,4 @@
-// Blombooru v1.40.0+ accepts API keys on POST /api/media/ (commit a17c3f1, May 2026).
+// Blombooru v1.40.0+ accepts scoped API keys (blom_…) via api_key on /api/media routes.
 const MIN_BLOOMBOORU_VERSION_FOR_API_KEY_UPLOAD = "1.40.0";
 
 function normalizeApiKey(apiKey) {
@@ -52,6 +52,11 @@ function getAuthHeaders(apiKey) {
     return {};
   }
 
+  // Blombooru scoped keys (blom_…) are sent as api_key query parameters.
+  if (key.startsWith("blom_")) {
+    return {};
+  }
+
   return { Authorization: `Bearer ${key}` };
 }
 
@@ -99,11 +104,6 @@ function getInstanceInfoUrl(booruUrl) {
   return `${base}/api/instance-info`;
 }
 
-function getApiKeyAuthProbeUrl(booruUrl) {
-  const base = booruUrl.replace(/\/$/, "");
-  return `${base}/api/admin/api-keys`;
-}
-
 async function fetchInstanceInfo(booruUrl) {
   try {
     const response = await fetch(getInstanceInfoUrl(booruUrl));
@@ -116,7 +116,7 @@ async function fetchInstanceInfo(booruUrl) {
   }
 }
 
-async function testApiKeyAuthentication(booruUrl, apiKey) {
+async function testApiKeyAuthentication(booruUrl, apiKey, instanceInfo = null) {
   const key = normalizeApiKey(apiKey);
   if (!key) {
     return;
@@ -126,36 +126,45 @@ async function testApiKeyAuthentication(booruUrl, apiKey) {
     throw new Error(browser.i18n.getMessage("errorApiKeyInvalidFormat"));
   }
 
-  const instanceInfo = await fetchInstanceInfo(booruUrl);
-  if (instanceInfo?.app_version) {
+  const info = instanceInfo ?? (await fetchInstanceInfo(booruUrl));
+
+  if (info?.app_version) {
     const supported = isSemverAtLeast(
-      instanceInfo.app_version,
+      info.app_version,
       MIN_BLOOMBOORU_VERSION_FOR_API_KEY_UPLOAD
     );
     if (supported === false) {
       throw new Error(
         browser.i18n.getMessage(
           "errorApiKeyUploadUnsupportedVersion",
-          instanceInfo.app_version
+          info.app_version
         )
       );
     }
   }
 
-  let response;
+  // Scoped upload keys authenticate media routes via api_key (not admin session routes).
+  if (!info?.auth_required) {
+    return;
+  }
+
+  let badKeyResponse;
   try {
-    response = await authorizedFetch(getApiKeyAuthProbeUrl(booruUrl), apiKey);
+    badKeyResponse = await fetch(
+      appendApiKeyQuery(getMediaListUrl(booruUrl), "blom_invalid_key_probe"),
+      { credentials: "omit" }
+    );
   } catch (err) {
     throw new Error(browser.i18n.getMessage("errorCouldNotReachServer"));
   }
 
-  if (response.status === 401 || response.status === 403) {
-    throw new Error(browser.i18n.getMessage("errorAuthFailed"));
+  if (badKeyResponse.status === 401 || badKeyResponse.status === 403) {
+    return;
   }
 
-  if (!response.ok) {
+  if (!badKeyResponse.ok) {
     throw new Error(
-      browser.i18n.getMessage("errorUnexpectedStatus", String(response.status))
+      browser.i18n.getMessage("errorUnexpectedStatus", String(badKeyResponse.status))
     );
   }
 }
@@ -189,5 +198,7 @@ async function testBlombooruConnection(booruUrl, apiKey) {
     throw new Error(browser.i18n.getMessage("errorNotBlombooruApi"));
   }
 
-  await testApiKeyAuthentication(booruUrl, apiKey);
+  const instanceInfo = await fetchInstanceInfo(booruUrl);
+  await testApiKeyAuthentication(booruUrl, apiKey, instanceInfo);
+  return instanceInfo;
 }

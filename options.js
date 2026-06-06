@@ -24,6 +24,34 @@ function localizePage(root = document) {
 
 localizePage();
 
+function renderUploadAuthHint(hintEl, booruUrlInput) {
+  const adminUrl = adminUrlFromBooruUrl(booruUrlInput.value);
+  const before = browser.i18n.getMessage("hintUploadAuthBefore");
+  const linkText = browser.i18n.getMessage("hintUploadAuthAdminLink");
+  const after = browser.i18n.getMessage("hintUploadAuthAfter");
+
+  hintEl.replaceChildren();
+
+  if (before) {
+    hintEl.appendChild(document.createTextNode(before));
+  }
+
+  if (adminUrl) {
+    const link = document.createElement("a");
+    link.href = adminUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = linkText;
+    hintEl.appendChild(link);
+  } else {
+    hintEl.appendChild(document.createTextNode(linkText));
+  }
+
+  if (after) {
+    hintEl.appendChild(document.createTextNode(after));
+  }
+}
+
 const saveButton = document.getElementById("save");
 const saveButtonWrap = document.getElementById("saveButtonWrap");
 const saveInvalidTooltip = browser.i18n.getMessage("tooltipSaveInvalid");
@@ -69,6 +97,7 @@ function setSaveEnabled(enabled) {
 function createServerManager(serverId, elements, onStateChange) {
   let connectionValid = false;
   let validationRequestId = 0;
+  let nameFilledForUrl = "";
 
   function showUrlStatus(message, type) {
     elements.urlStatusEl.textContent = message;
@@ -109,6 +138,19 @@ function createServerManager(serverId, elements, onStateChange) {
     }
 
     return normalized;
+  }
+
+  function applyInstanceAppName(booruUrl, instanceInfo) {
+    if (booruUrl === nameFilledForUrl) {
+      return;
+    }
+
+    const appName = instanceInfo?.app_name;
+
+    if (typeof appName === "string" && appName.trim()) {
+      elements.friendlyNameInput.value = appName.trim();
+      nameFilledForUrl = booruUrl;
+    }
   }
 
   async function validateConnection(requestPermission = false) {
@@ -164,9 +206,10 @@ function createServerManager(serverId, elements, onStateChange) {
       showUrlStatus(browser.i18n.getMessage("statusTestingConnection"), "info");
 
       const apiKey = elements.apiKeyInput.value;
+      let instanceInfo;
 
       try {
-        await testBlombooruConnection(booruUrl, apiKey);
+        instanceInfo = await testBlombooruConnection(booruUrl, apiKey);
       } catch (e) {
         if (requestId !== validationRequestId) return;
         showUrlStatus(e.message, "error");
@@ -176,6 +219,7 @@ function createServerManager(serverId, elements, onStateChange) {
 
       if (requestId !== validationRequestId) return;
 
+      applyInstanceAppName(booruUrl, instanceInfo);
       connectionValid = true;
       showUrlStatus(browser.i18n.getMessage("statusConnectionSuccess"), "success");
     } finally {
@@ -189,6 +233,7 @@ function createServerManager(serverId, elements, onStateChange) {
     connectionValid = false;
     setGrantAccessVisible(false);
     showUrlStatus("", "");
+    renderUploadAuthHint(elements.uploadAuthHintEl, elements.booruUrlInput);
     onStateChange();
   }
 
@@ -246,6 +291,7 @@ function createServerManager(serverId, elements, onStateChange) {
 
     elements.booruUrlInput.addEventListener("input", onUrlInput);
     elements.booruUrlInput.addEventListener("blur", () => {
+      renderUploadAuthHint(elements.uploadAuthHintEl, elements.booruUrlInput);
       validateConnection(false);
     });
 
@@ -266,10 +312,14 @@ function createServerManager(serverId, elements, onStateChange) {
   }
 
   function loadValues(entry) {
+    const booruUrl = normalizeBooruUrlInput(entry.booruUrl || "");
+
     elements.friendlyNameInput.value = entry.serverName || "";
-    elements.booruUrlInput.value = entry.booruUrl || "";
+    elements.booruUrlInput.value = booruUrl;
     elements.apiKeyInput.value = entry.apiKey || "";
     elements.ratingInput.value = entry.rating || "safe";
+    nameFilledForUrl = booruUrl && entry.serverName ? booruUrl : "";
+    renderUploadAuthHint(elements.uploadAuthHintEl, elements.booruUrlInput);
   }
 
   return {
@@ -319,6 +369,7 @@ function addServerCard(entry) {
     statusBlockEl: card.querySelector(".server-status-block"),
     urlStatusEl: card.querySelector(".url-status"),
     apiKeyInput: card.querySelector(".api-key"),
+    uploadAuthHintEl: card.querySelector(".upload-auth-hint"),
     ratingInput: card.querySelector(".rating")
   };
 

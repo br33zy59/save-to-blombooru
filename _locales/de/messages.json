@@ -153,6 +153,15 @@
   "labelApiKey": {
     "message": "API-Schlüssel:"
   },
+  "hintUploadAuthBefore": {
+    "message": "Wenn Uploads fehlschlagen, melden Sie sich im "
+  },
+  "hintUploadAuthAdminLink": {
+    "message": "Admin-Bereich"
+  },
+  "hintUploadAuthAfter": {
+    "message": " Ihres Blombooru an und versuchen Sie es erneut."
+  },
   "labelFriendlyName": {
     "message": "Name:"
   },
@@ -307,7 +316,7 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Upload fehlgeschlagen: Authentifizierung erforderlich. Prüfen Sie den API-Schlüssel und ob Blombooru v1.40.0 oder neuer ist."
+    "message": "Upload fehlgeschlagen: Authentifizierung erforderlich. Melden Sie sich auf der Blombooru-Adminseite an und versuchen Sie es erneut."
   },
   "errorUploadHostPermission": {
     "message": "Upload abgebrochen: Erlauben Sie den Zugriff auf Ihren Blombooru-Server, wenn Sie dazu aufgefordert werden."
@@ -338,6 +347,18 @@
         "example": "i.ytimg.com"
       }
     }
+  },
+  "popupUploadAuthFailedBefore": {
+    "message": "Upload fehlgeschlagen: Besuchen Sie die "
+  },
+  "popupUploadAuthAdminLink": {
+    "message": "Admin-Seite"
+  },
+  "popupUploadAuthFailedAfter": {
+    "message": " Ihres Blombooru und melden Sie sich an, um die erforderlichen Cookies zu erhalten"
+  },
+  "notifyUploadAuthAdminLogin": {
+    "message": "Upload fehlgeschlagen: Melden Sie sich im Browser auf der Blombooru-Adminseite an und versuchen Sie den Upload erneut."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload fehlgeschlagen: Methode nicht erlaubt. Prüfen Sie die Blombooru-Basis-URL."

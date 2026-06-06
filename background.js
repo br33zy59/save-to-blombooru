@@ -390,6 +390,34 @@ function notifySaveNeedsMediaHostPermissionPopupRetry(srcUrl) {
   });
 }
 
+function isUploadAuthError(err) {
+  return (
+    err instanceof Error &&
+    err.message === browser.i18n.getMessage("errorUploadAuthRequired")
+  );
+}
+
+function notifyUploadAuthAdminLoginRequired() {
+  browser.notifications.create({
+    type: "basic",
+    iconUrl: browser.runtime.getURL("icon.png"),
+    title: browser.i18n.getMessage("notificationUploadFailedTitle"),
+    message: browser.i18n.getMessage("notifyUploadAuthAdminLogin")
+  });
+}
+
+async function deferUploadAuthPopupRetry({ serverId, booruUrl }) {
+  await persistPendingUploadAuth({ serverId, booruUrl });
+
+  notifyUploadAuthAdminLoginRequired();
+
+  try {
+    await browser.action.openPopup();
+  } catch (err) {
+    console.warn("Could not open extension popup for upload auth retry:", err);
+  }
+}
+
 async function deferSaveForMediaHostPermissionPopupRetry({
   tabId,
   pageUrl,
@@ -967,6 +995,19 @@ async function performUpload(data) {
   } catch (err) {
     console.error(err);
     finishUpload("failure");
+
+    if (isUploadAuthError(err)) {
+      const servers = await getServersFromStorage();
+      const server = findServerById(servers, data.serverId);
+
+      if (server?.booruUrl) {
+        await deferUploadAuthPopupRetry({
+          serverId: data.serverId,
+          booruUrl: server.booruUrl
+        });
+        throw err;
+      }
+    }
 
     browser.notifications.create({
       type: "basic",

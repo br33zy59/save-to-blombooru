@@ -153,6 +153,15 @@
   "labelApiKey": {
     "message": "Chave de API:"
   },
+  "hintUploadAuthBefore": {
+    "message": "Se tiver problemas ao enviar, entre na "
+  },
+  "hintUploadAuthAdminLink": {
+    "message": "área administrativa"
+  },
+  "hintUploadAuthAfter": {
+    "message": " do seu Blombooru e tente novamente."
+  },
   "labelFriendlyName": {
     "message": "Nome:"
   },
@@ -307,7 +316,7 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Falha no envio: autenticação necessária. Verifique a chave de API e se o Blombooru é v1.40.0 ou mais recente."
+    "message": "Falha no envio: autenticação necessária. Entre na página de administração do Blombooru e tente novamente."
   },
   "errorUploadHostPermission": {
     "message": "Envio cancelado: permita o acesso ao seu servidor Blombooru quando solicitado."
@@ -338,6 +347,18 @@
         "example": "i.ytimg.com"
       }
     }
+  },
+  "popupUploadAuthFailedBefore": {
+    "message": "Falha no envio: visite a "
+  },
+  "popupUploadAuthAdminLink": {
+    "message": "página de administração"
+  },
+  "popupUploadAuthFailedAfter": {
+    "message": " do seu Blombooru e entre para obter os cookies necessários"
+  },
+  "notifyUploadAuthAdminLogin": {
+    "message": "Falha no envio: entre na página de administração do Blombooru no navegador e tente enviar novamente."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Falha no envio: método não permitido. Verifique a URL base do Blombooru."

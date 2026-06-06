@@ -105,6 +105,21 @@
       margin-bottom: 0;
     }
 
+    .field .api-key {
+      display: none !important;
+    }
+
+    .upload-auth-hint {
+      margin: 0;
+      font-size: 0.72em;
+      line-height: 1.35;
+      color: GrayText;
+    }
+
+    .upload-auth-hint a {
+      color: LinkText;
+    }
+
     .server-status-block {
       margin-top: 0.25em;
     }
@@ -261,8 +276,8 @@
 
       <div class="server-row">
         <div class="field">
-          <label data-i18n="labelApiKey"></label>
-          <input type="password" class="api-key" autocomplete="off">
+          <input type="password" class="api-key" autocomplete="off" tabindex="-1" aria-hidden="true">
+          <p class="upload-auth-hint" aria-live="polite"></p>
         </div>
         <div class="field">
           <label data-i18n="labelDefaultRating"></label>

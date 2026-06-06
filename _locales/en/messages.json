@@ -153,6 +153,15 @@
   "labelApiKey": {
     "message": "API Key:"
   },
+  "hintUploadAuthBefore": {
+    "message": "If you have problems uploading, log into the "
+  },
+  "hintUploadAuthAdminLink": {
+    "message": "admin area"
+  },
+  "hintUploadAuthAfter": {
+    "message": " of your blombooru then try again."
+  },
   "labelFriendlyName": {
     "message": "Name:"
   },
@@ -307,7 +316,7 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Upload failed: authentication required. Check the API key and ensure Blombooru is v1.40.0 or newer."
+    "message": "Upload failed: authentication required. Log into your Blombooru admin page and try again."
   },
   "errorUploadHostPermission": {
     "message": "Upload cancelled: allow access to your Blombooru server when prompted."
@@ -338,6 +347,18 @@
         "example": "i.ytimg.com"
       }
     }
+  },
+  "popupUploadAuthFailedBefore": {
+    "message": "Upload failed: You need to visit your blombooru "
+  },
+  "popupUploadAuthAdminLink": {
+    "message": "admin page"
+  },
+  "popupUploadAuthFailedAfter": {
+    "message": " and log in to obtain the necessary cookies"
+  },
+  "notifyUploadAuthAdminLogin": {
+    "message": "Upload failed: log into your Blombooru admin page in the browser, then try uploading again."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload failed: method not allowed. Check your Blombooru base URL."

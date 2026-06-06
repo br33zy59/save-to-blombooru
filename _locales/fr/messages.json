@@ -153,6 +153,15 @@
   "labelApiKey": {
     "message": "Clé API :"
   },
+  "hintUploadAuthBefore": {
+    "message": "En cas de problème d'envoi, connectez-vous à la "
+  },
+  "hintUploadAuthAdminLink": {
+    "message": "zone d'administration"
+  },
+  "hintUploadAuthAfter": {
+    "message": " de votre Blombooru, puis réessayez."
+  },
   "labelFriendlyName": {
     "message": "Nom :"
   },
@@ -307,7 +316,7 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Échec de l'envoi : authentification requise. Vérifiez la clé API et que Blombooru est en v1.40.0 ou plus récent."
+    "message": "Échec de l'envoi : authentification requise. Connectez-vous à la page d'administration Blombooru et réessayez."
   },
   "errorUploadHostPermission": {
     "message": "Envoi annulé : autorisez l'accès à votre serveur Blombooru lorsque le navigateur le demande."
@@ -338,6 +347,18 @@
         "example": "i.ytimg.com"
       }
     }
+  },
+  "popupUploadAuthFailedBefore": {
+    "message": "Échec de l'envoi : visitez la "
+  },
+  "popupUploadAuthAdminLink": {
+    "message": "page d'administration"
+  },
+  "popupUploadAuthFailedAfter": {
+    "message": " de votre Blombooru et connectez-vous pour obtenir les cookies nécessaires"
+  },
+  "notifyUploadAuthAdminLogin": {
+    "message": "Échec de l'envoi : connectez-vous à la page d'administration Blombooru dans le navigateur, puis réessayez l'envoi."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Échec de l'envoi : méthode non autorisée. Vérifiez l'URL de base Blombooru."

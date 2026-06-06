@@ -306,6 +306,16 @@ function normalizeBooruUrlInput(urlString) {
   return `https://${trimmed}`;
 }
 
+function adminUrlFromBooruUrl(booruUrl) {
+  const normalized = normalizeBooruUrlInput(booruUrl);
+
+  if (!normalized) {
+    return "";
+  }
+
+  return `${normalized.replace(/\/+$/, "")}/admin`;
+}
+
 function originPatternFromUrl(urlString) {
   if (!urlString || isInlineMediaUrl(urlString)) {
     return null;
@@ -510,6 +520,23 @@ function hostPermissionHostLabel(srcUrl) {
 }
 
 const PENDING_CONTEXT_MENU_SAVE_KEY = "pendingContextMenuSave";
+const PENDING_UPLOAD_AUTH_KEY = "pendingUploadAuth";
+
+async function persistPendingUploadAuth(pending) {
+  await browser.storage.session.set({
+    [PENDING_UPLOAD_AUTH_KEY]: pending
+  });
+}
+
+async function readPendingUploadAuth() {
+  const data = await browser.storage.session.get(PENDING_UPLOAD_AUTH_KEY);
+
+  return data[PENDING_UPLOAD_AUTH_KEY] ?? null;
+}
+
+async function clearPendingUploadAuth() {
+  await browser.storage.session.remove(PENDING_UPLOAD_AUTH_KEY);
+}
 
 async function persistPendingMediaHostSave(pending) {
   await browser.storage.session.set({

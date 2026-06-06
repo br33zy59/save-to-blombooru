@@ -153,6 +153,15 @@
   "labelApiKey": {
     "message": "Clave API:"
   },
+  "hintUploadAuthBefore": {
+    "message": "Si tienes problemas al subir, inicia sesión en el "
+  },
+  "hintUploadAuthAdminLink": {
+    "message": "área de administración"
+  },
+  "hintUploadAuthAfter": {
+    "message": " de tu Blombooru e inténtalo de nuevo."
+  },
   "labelFriendlyName": {
     "message": "Nombre:"
   },
@@ -307,7 +316,7 @@
     }
   },
   "errorUploadAuthRequired": {
-    "message": "Error al subir: se requiere autenticación. Compruebe la clave API y que Blombooru sea v1.40.0 o superior."
+    "message": "Error al subir: se requiere autenticación. Inicie sesión en la página de administración de Blombooru e inténtelo de nuevo."
   },
   "errorUploadHostPermission": {
     "message": "Subida cancelada: permita el acceso a su servidor Blombooru cuando se le solicite."
@@ -338,6 +347,18 @@
         "example": "i.ytimg.com"
       }
     }
+  },
+  "popupUploadAuthFailedBefore": {
+    "message": "Error al subir: debe visitar la "
+  },
+  "popupUploadAuthAdminLink": {
+    "message": "página de administración"
+  },
+  "popupUploadAuthFailedAfter": {
+    "message": " de su Blombooru e iniciar sesión para obtener las cookies necesarias"
+  },
+  "notifyUploadAuthAdminLogin": {
+    "message": "Error al subir: inicie sesión en la página de administración de Blombooru en el navegador e intente subir de nuevo."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Error al subir: método no permitido. Compruebe la URL base de Blombooru."
