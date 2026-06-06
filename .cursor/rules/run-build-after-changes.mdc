@@ -1,0 +1,42 @@
+---
+description: Run the extension build/stage script after code changes
+alwaysApply: true
+---
+
+# Build after extension changes
+
+This repo is a browser extension. **Source lives under `src/`.** Edits are not loaded in the browser until you stage a build.
+
+## Required step
+
+After **any** change to extension code, locales, or manifests, run:
+
+```bash
+node scripts/build.mjs
+```
+
+From the repo root. This validates locales, syncs background modules, and writes:
+
+- `build/staging-firefox/` — load unpacked in Firefox (`about:debugging`)
+- `build/staging-chrome/` — load unpacked in Chrome (`chrome://extensions`)
+
+Do this **before** telling the user to reload or test the extension. Do not skip because the last turn already built — rebuild if new edits were made in this session.
+
+## When to run
+
+- After editing files under `src/` (`.js`, `.html`, `_locales/**`, manifests, platform entrypoints)
+- After adding/removing files listed in `scripts/build.mjs` `SHARED_FILES`
+- At the end of a multi-file task, once all edits are done (not after every single file mid-task)
+
+## Optional targets
+
+```bash
+node scripts/build.mjs firefox   # Firefox only
+node scripts/build.mjs chrome    # Chrome only
+node scripts/build.mjs clean     # remove build/
+```
+
+## If build fails
+
+Fix locale key mismatches or `background-modules.firefox.json` / `background-sw.chrome.js` drift before finishing the task.
+

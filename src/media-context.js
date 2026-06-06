@@ -537,8 +537,6 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     return false;
   }
 
-  const urlsReferToSameImage = urlsReferToSameMedia;
-
   function isDataAttrDuplicateReference(displayUrl, dataRef) {
     if (!dataRef?.url) {
       return true;
@@ -550,7 +548,7 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       return true;
     }
 
-    return urlsReferToSameImage(displayUrl, dataRef.url);
+    return urlsReferToSameMedia(displayUrl, dataRef.url);
   }
 
   function pickLargestSrcset(el) {

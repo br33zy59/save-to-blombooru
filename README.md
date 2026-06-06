@@ -54,7 +54,7 @@ node scripts/build.mjs firefox   # or: chrome
 ```
 
 1. **Firefox / LibreWolf:** `about:debugging` → **This Firefox** → **Load Temporary Add-on…** → choose `build/staging-firefox/manifest.json`. Requires **Firefox 140+** (uses `background.scripts`).
-2. **Chrome / Edge:** `chrome://extensions` or `edge://extensions` → **Developer mode** → **Load unpacked** → `build/staging-chrome` (Chrome 121+; uses `background-sw.js` service worker).
+2. **Chrome / Edge:** `chrome://extensions` or `edge://extensions` → **Developer mode** → **Load unpacked** → `build/staging-chrome` (Chrome 121+; uses `background-sw.chrome.js` service worker).
 
 After changing background or popup code, run the build again and reload the extension.
 
@@ -84,23 +84,28 @@ The `build/` directory is git-ignored. ZIPs use `tar` so paths use forward slash
 
 ```
 save-to-blombooru/
-├── manifest.json          # Firefox MV3 (AMO → staging-firefox/manifest.json)
-├── manifest.chrome.json   # Chrome MV3 (→ staging-chrome/manifest.json)
-├── background-modules.json # Ordered background modules (Firefox scripts; validated vs background-sw.js)
-├── background-sw.js       # Chromium service worker entry (importScripts chain)
-├── browser.js             # browser/chrome shim
-├── background.js          # Context menu, uploads, notifications
-├── auth.js                # API auth and connection test
-├── servers.js             # Multi-server storage
-├── permissions.js         # Optional host permission helper
-├── media-context.js       # Caption extraction (injected)
-├── options.html / options.js
-├── popup.html / popup.js   # Toolbar menu (settings, server links, page media gallery)
-├── tab-scripting.js        # Shared tab script injection helper
-├── scripts/build.mjs
-├── _locales/              # en, de, fr, es, pt_BR
-└── icon.png
+├── scripts/build.mjs       # Stage src/ → build/staging-* and ZIP packages
+├── build/                  # gitignored: staging dirs and release ZIPs
+└── src/
+    ├── manifest.firefox.json
+    ├── manifest.chrome.json
+    ├── background-modules.firefox.json  # Firefox script order (injected at build)
+    ├── background-sw.chrome.js          # Chromium service worker entry
+    ├── browser.js                       # browser/chrome shim
+    ├── background.js                    # Context menu, uploads, notifications
+    ├── auth.js                          # API auth and connection test
+    ├── servers.js                       # Multi-server storage
+    ├── permissions.js                   # Host permissions, upload prep
+    ├── media-context.js                 # Injected page scripts (caption, gallery)
+    ├── options.html / options.js
+    ├── popup.html / popup.js            # Toolbar popup and page media gallery
+    ├── tab-scripting.js
+    ├── i18n-ui.js
+    ├── _locales/                        # en, de, fr, es, pt_BR
+    └── icon.png
 ```
+
+The build writes a single `manifest.json` into each staging directory (background section merged from the platform entrypoints above).
 
 ---
 

@@ -357,12 +357,8 @@ function originsAreSame(urlA, urlB) {
  * Whether optional host permission must be requested before fetching media bytes.
  * Remote / non-display URLs need host access. On-page display URLs are read via
  * activeTab first; host permission is requested only if that fails.
- *
- * @param {string} srcUrl URL being uploaded
- * @param {string} pageUrl Active tab URL when the gallery was scanned
- * @param {{ displayUrl?: string, uploadUrl?: string, fullOnPage?: boolean } | null} mediaContext
  */
-function shouldPromptForMediaHostPermission(srcUrl, pageUrl, mediaContext = null) {
+function shouldPromptForMediaHostPermission(srcUrl, pageUrl) {
   if (hasInstallTimeBroadHostAccess() || !srcUrl) {
     return false;
   }
@@ -375,26 +371,7 @@ function shouldPromptForMediaHostPermission(srcUrl, pageUrl, mediaContext = null
     return false;
   }
 
-  if (!mediaContext) {
-    return true;
-  }
-
-  const { displayUrl, uploadUrl, fullOnPage } = mediaContext;
-
-  // On-page display URL — try activeTab scripting first (see needsMediaHostPermissionPrompt).
-  if (displayUrl && srcUrl === displayUrl) {
-    return false;
-  }
-
-  if (uploadUrl && srcUrl === uploadUrl && fullOnPage) {
-    return false;
-  }
-
   return true;
-}
-
-function isOnPageDisplayUrl(srcUrl, mediaContext) {
-  return Boolean(mediaContext?.displayUrl && srcUrl === mediaContext.displayUrl);
 }
 
 /**
@@ -418,7 +395,7 @@ function needsMediaHostPermissionPrompt(srcUrl, pageUrl, tabPayload) {
     return true;
   }
 
-  return shouldPromptForMediaHostPermission(srcUrl, pageUrl, null);
+  return shouldPromptForMediaHostPermission(srcUrl, pageUrl);
 }
 
 function mediaHostPermissionPatternsForUrl(srcUrl) {
@@ -433,15 +410,6 @@ function mediaHostPermissionPatternsForUrl(srcUrl) {
   } catch (err) {
     return [];
   }
-}
-
-/** Gallery / menu metadata for an on-page display URL. */
-function onPageDisplayMediaContext(displayUrl) {
-  return {
-    displayUrl,
-    uploadUrl: displayUrl,
-    fullOnPage: false
-  };
 }
 
 async function ensureHostPermission(originPattern, requestIfNeeded) {
@@ -519,12 +487,15 @@ function hostPermissionHostLabel(srcUrl) {
   }
 }
 
-const PENDING_CONTEXT_MENU_SAVE_KEY = "pendingContextMenuSave";
+const PENDING_MEDIA_HOST_SAVE_KEY = "pendingMediaHostSave";
 const PENDING_UPLOAD_AUTH_KEY = "pendingUploadAuth";
 
 async function persistPendingUploadAuth(pending) {
   await browser.storage.session.set({
-    [PENDING_UPLOAD_AUTH_KEY]: pending
+    [PENDING_UPLOAD_AUTH_KEY]: {
+      ...pending,
+      createdAt: pending.createdAt ?? Date.now()
+    }
   });
 }
 
@@ -540,8 +511,9 @@ async function clearPendingUploadAuth() {
 
 async function persistPendingMediaHostSave(pending) {
   await browser.storage.session.set({
-    [PENDING_CONTEXT_MENU_SAVE_KEY]: {
+    [PENDING_MEDIA_HOST_SAVE_KEY]: {
       ...pending,
+      createdAt: pending.createdAt ?? Date.now(),
       booruPermissionsPreGranted: true,
       mediaPermissionsPreGranted: false
     }
@@ -549,33 +521,32 @@ async function persistPendingMediaHostSave(pending) {
 }
 
 async function readPendingMediaHostSave() {
-  const data = await browser.storage.session.get(PENDING_CONTEXT_MENU_SAVE_KEY);
+  const data = await browser.storage.session.get(PENDING_MEDIA_HOST_SAVE_KEY);
 
-  return data[PENDING_CONTEXT_MENU_SAVE_KEY] ?? null;
+  return data[PENDING_MEDIA_HOST_SAVE_KEY] ?? null;
 }
 
 async function clearPendingMediaHostSave() {
-  await browser.storage.session.remove(PENDING_CONTEXT_MENU_SAVE_KEY);
+  await browser.storage.session.remove(PENDING_MEDIA_HOST_SAVE_KEY);
 }
 
-function notifyBooruHostPermissionDenied() {
+function notifyUploadFailed(message) {
   browser.notifications.create({
     type: "basic",
     iconUrl: browser.runtime.getURL("icon.png"),
     title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-    message: browser.i18n.getMessage("errorUploadHostPermission")
+    message
   });
+}
+
+function notifyBooruHostPermissionDenied() {
+  notifyUploadFailed(browser.i18n.getMessage("errorUploadHostPermission"));
 }
 
 function notifyMediaHostPermissionDenied(srcUrl) {
   const host = hostPermissionHostLabel(srcUrl);
 
-  browser.notifications.create({
-    type: "basic",
-    iconUrl: browser.runtime.getURL("icon.png"),
-    title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-    message: browser.i18n.getMessage("errorUploadMediaHostPermission", host)
-  });
+  notifyUploadFailed(browser.i18n.getMessage("errorUploadMediaHostPermission", host));
 }
 
 async function awaitHostPermissionRequests(requestPromises) {

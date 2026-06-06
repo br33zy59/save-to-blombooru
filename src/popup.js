@@ -1,12 +1,3 @@
-function localizePage(root = document) {
-  root.querySelectorAll("[data-i18n]").forEach((el) => {
-    const msg = browser.i18n.getMessage(el.getAttribute("data-i18n"));
-    if (msg) {
-      el.textContent = msg;
-    }
-  });
-}
-
 const serverLinksEl = document.getElementById("serverLinks");
 const noServersEl = document.getElementById("noServers");
 const pageMediaSection = document.getElementById("pageMediaSection");
@@ -83,8 +74,11 @@ const GALLERY_SORT_DIRECTION_KEYS = {
 let gallerySourceTabId = -1;
 /** When set, the next save click for this pair should request media host access first. */
 let mediaHostRetryTarget = null;
-/** When true, keep the upload-auth banner visible across gallery UI updates. */
-let uploadAuthBannerActive = false;
+/** Active popup retry banner: upload auth or media-host permission. */
+let popupRetryBannerKind = null;
+/** Auto-hide popup retry banners after this long (see pending createdAt). */
+const POPUP_RETRY_BANNER_CLEAR_MS = 8000;
+let popupRetryBannerClearTimeout = null;
 /** Last server list loaded by the popup (used for sync save routing without losing user gesture). */
 let galleryServersCache = null;
 let galleryPageUrl = "";
@@ -527,17 +521,6 @@ function revokeGalleryRemoteFullPreviewCache() {
   galleryRemoteFullPreviewCache.clear();
 }
 
-function base64ToPreviewBlob(base64, mimeType) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return new Blob([bytes], { type: mimeType || "application/octet-stream" });
-}
-
 async function ensureGalleryRemoteFullPreview(uploadUrl, kind) {
   const cached = galleryRemoteFullPreviewCache.get(uploadUrl);
 
@@ -557,7 +540,7 @@ async function ensureGalleryRemoteFullPreview(uploadUrl, kind) {
     return null;
   }
 
-  const blob = base64ToPreviewBlob(response.base64, response.mimeType);
+  const blob = base64ToBlob(response.base64, response.mimeType);
   const objectUrl = URL.createObjectURL(blob);
   const useVideo = kind === "video" && isDirectVideoPreviewUrl(uploadUrl);
   const entry = {
@@ -955,53 +938,101 @@ function showPageMediaLoading() {
   pageMediaHost.replaceChildren();
 }
 
-function clearPopupRetryStatusUi() {
+function popupRetryBannerRemainingMs(pending) {
+  const createdAt = pending?.createdAt;
+
+  if (!createdAt) {
+    return POPUP_RETRY_BANNER_CLEAR_MS;
+  }
+
+  return Math.max(0, POPUP_RETRY_BANNER_CLEAR_MS - (Date.now() - createdAt));
+}
+
+function isPopupRetryBannerExpired(pending) {
+  return popupRetryBannerRemainingMs(pending) === 0;
+}
+
+function cancelPopupRetryBannerAutoDismiss() {
+  if (popupRetryBannerClearTimeout) {
+    clearTimeout(popupRetryBannerClearTimeout);
+    popupRetryBannerClearTimeout = null;
+  }
+}
+
+function clearPopupRetryBannerChrome() {
   pageMediaStatus.classList.remove("page-media-status--host-retry");
   pageMediaStatus.removeAttribute("role");
-  uploadAuthBannerActive = false;
+  popupRetryBannerKind = null;
 }
 
-function showMediaHostRetryStatus(host) {
-  pageMediaStatus.hidden = false;
-  pageMediaStatus.textContent = browser.i18n.getMessage("popupMediaHostRetryPrompt", host);
-  pageMediaStatus.classList.add("page-media-status--host-retry");
-  pageMediaStatus.setAttribute("role", "alert");
-}
-
-function showUploadAuthRequiredStatus(booruUrl) {
-  const adminUrl = adminUrlFromBooruUrl(booruUrl);
-  const before = browser.i18n.getMessage("popupUploadAuthFailedBefore");
-  const linkText = browser.i18n.getMessage("popupUploadAuthAdminLink");
-  const after = browser.i18n.getMessage("popupUploadAuthFailedAfter");
-
+function showPopupRetryBanner(kind, renderContent) {
   pageMediaStatus.hidden = false;
   pageMediaStatus.replaceChildren();
   pageMediaStatus.classList.add("page-media-status--host-retry");
   pageMediaStatus.setAttribute("role", "alert");
-  uploadAuthBannerActive = true;
+  popupRetryBannerKind = kind;
+  renderContent(pageMediaStatus);
+}
 
-  if (before) {
-    pageMediaStatus.appendChild(document.createTextNode(before));
+function showMediaHostRetryStatus(host) {
+  showPopupRetryBanner("mediaHost", (el) => {
+    el.textContent = browser.i18n.getMessage("popupMediaHostRetryPrompt", host);
+  });
+}
+
+function showUploadAuthRequiredStatus(booruUrl) {
+  showPopupRetryBanner("uploadAuth", (el) => {
+    renderAdminLoginMessage(el, booruUrl, {
+      beforeKey: "popupUploadAuthFailedBefore",
+      linkKey: "popupUploadAuthAdminLink",
+      afterKey: "popupUploadAuthFailedAfter"
+    });
+  });
+}
+
+function schedulePopupRetryBannerAutoDismiss(pending) {
+  cancelPopupRetryBannerAutoDismiss();
+
+  const remainingMs = popupRetryBannerRemainingMs(pending);
+
+  if (remainingMs === 0) {
+    void dismissPopupRetryBanner();
+    return;
   }
 
-  if (adminUrl) {
-    const link = document.createElement("a");
-    link.href = adminUrl;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = linkText;
-    pageMediaStatus.appendChild(link);
+  popupRetryBannerClearTimeout = setTimeout(() => {
+    popupRetryBannerClearTimeout = null;
+    void dismissPopupRetryBanner();
+  }, remainingMs);
+}
+
+async function dismissPopupRetryBanner() {
+  const kind = popupRetryBannerKind;
+  cancelPopupRetryBannerAutoDismiss();
+
+  if (kind === "uploadAuth") {
+    await clearPendingUploadAuth();
+  } else if (kind === "mediaHost") {
+    mediaHostRetryTarget = null;
+    clearMediaHostRetryHighlight();
+    await clearPendingMediaHostSave();
   } else {
-    pageMediaStatus.appendChild(document.createTextNode(linkText));
+    await clearPendingUploadAuth();
+    mediaHostRetryTarget = null;
+    clearMediaHostRetryHighlight();
+    await clearPendingMediaHostSave();
   }
 
-  if (after) {
-    pageMediaStatus.appendChild(document.createTextNode(after));
-  }
+  popupRetryBannerKind = null;
+  pageMediaStatus.classList.remove("page-media-status--host-retry");
+  pageMediaStatus.removeAttribute("role");
+  pageMediaStatus.hidden = true;
+  pageMediaStatus.replaceChildren();
 }
 
 function clearPageMediaStatus() {
-  clearPopupRetryStatusUi();
+  cancelPopupRetryBannerAutoDismiss();
+  clearPopupRetryBannerChrome();
   pageMediaStatus.hidden = true;
   pageMediaStatus.replaceChildren();
 }
@@ -1060,25 +1091,6 @@ function galleryBooruPermissionPatterns(server) {
     return pattern ? [pattern] : [];
   } catch (err) {
     return [];
-  }
-}
-
-async function acquireTabPayloadInPopup(tabId, srcUrl) {
-  if (normalizeTabId(tabId) < 0 || !srcUrl) {
-    return null;
-  }
-
-  try {
-    const payload = await runInTab(tabId, extractMediaBlobInPage, [srcUrl]);
-
-    if (!payload?.base64) {
-      return null;
-    }
-
-    return payload;
-  } catch (err) {
-    console.warn("Tab media probe failed:", err);
-    return null;
   }
 }
 
@@ -1215,14 +1227,6 @@ function showGalleryItemUploadOutcome(srcUrl, outcome) {
   galleryUploadFeedbackTimeouts.set(srcUrl, timeout);
 }
 
-function showGalleryItemUploadSuccess(srcUrl) {
-  showGalleryItemUploadOutcome(srcUrl, "success");
-}
-
-function showGalleryItemUploadFailure(srcUrl) {
-  showGalleryItemUploadOutcome(srcUrl, "failure");
-}
-
 function findGalleryCellForSrcUrl(srcUrl) {
   if (!srcUrl) {
     return null;
@@ -1244,14 +1248,24 @@ function clearMediaHostRetryHighlight() {
 }
 
 async function clearMediaHostRetryState() {
+  cancelPopupRetryBannerAutoDismiss();
+
+  if (popupRetryBannerKind === "mediaHost") {
+    clearPopupRetryBannerChrome();
+  }
+
   mediaHostRetryTarget = null;
   clearMediaHostRetryHighlight();
-  clearPopupRetryStatusUi();
   await clearPendingMediaHostSave();
 }
 
 async function clearUploadAuthRetryState() {
-  uploadAuthBannerActive = false;
+  cancelPopupRetryBannerAutoDismiss();
+
+  if (popupRetryBannerKind === "uploadAuth") {
+    clearPopupRetryBannerChrome();
+  }
+
   await clearPendingUploadAuth();
 }
 
@@ -1262,7 +1276,13 @@ async function applyPendingUploadAuthUi() {
     return false;
   }
 
+  if (isPopupRetryBannerExpired(pending)) {
+    await clearUploadAuthRetryState();
+    return false;
+  }
+
   showUploadAuthRequiredStatus(pending.booruUrl);
+  schedulePopupRetryBannerAutoDismiss(pending);
   return true;
 }
 
@@ -1289,6 +1309,11 @@ async function applyPendingMediaHostRetryUi() {
     return;
   }
 
+  if (isPopupRetryBannerExpired(pending)) {
+    await clearMediaHostRetryState();
+    return;
+  }
+
   const allServers = await getServersFromStorage();
 
   galleryServersCache = allServers;
@@ -1304,6 +1329,7 @@ async function applyPendingMediaHostRetryUi() {
   const host = hostPermissionHostLabel(pending.srcUrl);
 
   showMediaHostRetryStatus(host);
+  schedulePopupRetryBannerAutoDismiss(pending);
 
   const cell = findGalleryCellForSrcUrl(pending.srcUrl);
 
@@ -1347,16 +1373,16 @@ async function startGallerySave(srcUrl, serverId, tabPayload = null) {
 
     if (response?.ok) {
       await clearUploadAuthRetryState();
-      showGalleryItemUploadSuccess(srcUrl);
+      showGalleryItemUploadOutcome(srcUrl, "success");
     } else {
-      showGalleryItemUploadFailure(srcUrl);
+      showGalleryItemUploadOutcome(srcUrl, "failure");
 
       if (response) {
         console.warn("Gallery save failed:", response.error);
       }
     }
   } catch (err) {
-    showGalleryItemUploadFailure(srcUrl);
+    showGalleryItemUploadOutcome(srcUrl, "failure");
     console.warn("Gallery save message failed:", err);
   }
 }
@@ -1376,7 +1402,7 @@ async function beginGallerySaveWithPermissions(
   }
 
   const booruRequests = beginHostPermissionRequests(galleryBooruPermissionPatterns(server));
-  const probePromise = acquireTabPayloadInPopup(gallerySourceTabId, srcUrl);
+  const probePromise = probeTabMediaPayload(gallerySourceTabId, srcUrl);
 
   const booruGranted = await awaitHostPermissionRequests(booruRequests);
 
@@ -1495,7 +1521,7 @@ async function openGalleryServerMenu(srcUrl, anchorEl) {
     }
 
     const keepRetryStatus =
-      mediaHostRetryTarget?.srcUrl === srcUrl || uploadAuthBannerActive;
+      mediaHostRetryTarget?.srcUrl === srcUrl || popupRetryBannerKind !== null;
 
     if (!keepRetryStatus) {
       clearPageMediaStatus();
@@ -1855,7 +1881,10 @@ document.addEventListener("keydown", (event) => {
 });
 
 browser.storage.onChanged.addListener((changes, area) => {
-  if (area === "session" && changes.pendingUploadAuth) {
+  if (
+    area === "session" &&
+    (changes.pendingUploadAuth || changes.pendingMediaHostSave)
+  ) {
     void applyPendingPopupAlerts();
     return;
   }
@@ -1903,4 +1932,5 @@ void loadGalleryViewPrefs()
 
 window.addEventListener("pagehide", () => {
   revokeGalleryRemoteFullPreviewCache();
+  cancelPopupRetryBannerAutoDismiss();
 });

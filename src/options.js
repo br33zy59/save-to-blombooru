@@ -1,55 +1,11 @@
-function localizePage(root = document) {
-  root.querySelectorAll("[data-i18n]").forEach((el) => {
-    const msg = browser.i18n.getMessage(el.getAttribute("data-i18n"));
-    if (msg) {
-      el.textContent = msg;
-    }
-  });
-
-  root.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
-    const msg = browser.i18n.getMessage(el.getAttribute("data-i18n-placeholder"));
-    if (msg) {
-      el.placeholder = msg;
-    }
-  });
-
-  root.querySelectorAll("[data-i18n-title]").forEach((el) => {
-    const msg = browser.i18n.getMessage(el.getAttribute("data-i18n-title"));
-    if (msg) {
-      el.title = msg;
-      el.setAttribute("aria-label", msg);
-    }
-  });
-}
-
 localizePage();
 
 function renderUploadAuthHint(hintEl, booruUrlInput) {
-  const adminUrl = adminUrlFromBooruUrl(booruUrlInput.value);
-  const before = browser.i18n.getMessage("hintUploadAuthBefore");
-  const linkText = browser.i18n.getMessage("hintUploadAuthAdminLink");
-  const after = browser.i18n.getMessage("hintUploadAuthAfter");
-
-  hintEl.replaceChildren();
-
-  if (before) {
-    hintEl.appendChild(document.createTextNode(before));
-  }
-
-  if (adminUrl) {
-    const link = document.createElement("a");
-    link.href = adminUrl;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = linkText;
-    hintEl.appendChild(link);
-  } else {
-    hintEl.appendChild(document.createTextNode(linkText));
-  }
-
-  if (after) {
-    hintEl.appendChild(document.createTextNode(after));
-  }
+  renderAdminLoginMessage(hintEl, booruUrlInput.value, {
+    beforeKey: "hintUploadAuthBefore",
+    linkKey: "hintUploadAuthAdminLink",
+    afterKey: "hintUploadAuthAfter"
+  });
 }
 
 const saveButton = document.getElementById("save");

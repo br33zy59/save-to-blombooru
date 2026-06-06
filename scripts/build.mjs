@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Stage extension files and create ZIP packages for AMO (Firefox) and Chrome Web Store.
- * Archive root contains manifest.json and peers (not a wrapper folder).
+ * Source lives under src/; output is build/staging-{firefox,chrome}/ with manifest.json at the archive root.
  */
 
 import {
@@ -18,11 +18,13 @@ import { fileURLToPath } from "node:url";
 import { execSync } from "node:child_process";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const srcDir = join(root, "src");
 const buildDir = join(root, "build");
 
 const SHARED_FILES = [
   "browser.js",
   "permissions.js",
+  "i18n-ui.js",
   "tab-scripting.js",
   "background.js",
   "auth.js",
@@ -35,11 +37,15 @@ const SHARED_FILES = [
   "icon.png"
 ];
 
-const SERVICE_WORKER_ENTRY = "background-sw.js";
-const BACKGROUND_MODULES_PATH = "background-modules.json";
+const SERVICE_WORKER_ENTRY = "background-sw.chrome.js";
+const BACKGROUND_MODULES_PATH = "background-modules.firefox.json";
+
+function srcPath(...segments) {
+  return join(srcDir, ...segments);
+}
 
 function loadBackgroundModuleList() {
-  return JSON.parse(readFileSync(join(root, BACKGROUND_MODULES_PATH), "utf8"));
+  return JSON.parse(readFileSync(srcPath(BACKGROUND_MODULES_PATH), "utf8"));
 }
 
 function validateBackgroundModuleList() {
@@ -49,13 +55,19 @@ function validateBackgroundModuleList() {
     throw new Error(`${BACKGROUND_MODULES_PATH} must be a non-empty array of script paths.`);
   }
 
-  const swSource = readFileSync(join(root, SERVICE_WORKER_ENTRY), "utf8");
+  const swSource = readFileSync(srcPath(SERVICE_WORKER_ENTRY), "utf8");
 
   for (const file of modules) {
     if (!swSource.includes(`"${file}"`)) {
       throw new Error(
         `${SERVICE_WORKER_ENTRY} must importScripts("${file}") — out of sync with ${BACKGROUND_MODULES_PATH}.`
       );
+    }
+  }
+
+  for (const file of modules) {
+    if (!existsSync(srcPath(file))) {
+      throw new Error(`${BACKGROUND_MODULES_PATH} lists missing src file: ${file}`);
     }
   }
 
@@ -77,7 +89,7 @@ function applyBackgroundToManifest(manifest, targetName) {
 
 const TARGETS = {
   firefox: {
-    manifest: "manifest.json",
+    manifest: "manifest.firefox.json",
     zipPrefix: "save-to-blombooru-firefox"
   },
   chrome: {
@@ -111,12 +123,12 @@ function cleanBuildDir() {
 }
 
 function validateLocales() {
-  const enPath = join(root, "_locales", "en", "messages.json");
+  const enPath = srcPath("_locales", "en", "messages.json");
   const en = JSON.parse(readFileSync(enPath, "utf8"));
   const enKeys = Object.keys(en).sort();
 
   for (const locale of ["de", "fr", "es", "pt_BR"]) {
-    const path = join(root, "_locales", locale, "messages.json");
+    const path = srcPath("_locales", locale, "messages.json");
     const data = JSON.parse(readFileSync(path, "utf8"));
     const keys = Object.keys(data).sort();
 
@@ -143,6 +155,14 @@ function validateLocales() {
   console.log("Locale files OK (5 locales, keys aligned with en).");
 }
 
+function validateSharedFiles() {
+  for (const file of SHARED_FILES) {
+    if (!existsSync(srcPath(file))) {
+      throw new Error(`Missing src file listed in SHARED_FILES: ${file}`);
+    }
+  }
+}
+
 function createZip(zipPath, stagingDir) {
   rmSync(zipPath, { force: true });
   mkdirSync(buildDir, { recursive: true });
@@ -156,7 +176,7 @@ function buildTarget(targetName) {
   rmSync(stagingDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
   mkdirSync(stagingDir, { recursive: true });
 
-  const manifest = JSON.parse(readFileSync(join(root, target.manifest), "utf8"));
+  const manifest = JSON.parse(readFileSync(srcPath(target.manifest), "utf8"));
   applyBackgroundToManifest(manifest, targetName);
   writeFileSync(
     join(stagingDir, "manifest.json"),
@@ -165,14 +185,14 @@ function buildTarget(targetName) {
   );
 
   for (const file of SHARED_FILES) {
-    cpSync(join(root, file), join(stagingDir, file));
+    cpSync(srcPath(file), join(stagingDir, file));
   }
 
   if (targetName === "chrome") {
-    cpSync(join(root, SERVICE_WORKER_ENTRY), join(stagingDir, SERVICE_WORKER_ENTRY));
+    cpSync(srcPath(SERVICE_WORKER_ENTRY), join(stagingDir, SERVICE_WORKER_ENTRY));
   }
 
-  cpSync(join(root, "_locales"), join(stagingDir, "_locales"), { recursive: true });
+  cpSync(srcPath("_locales"), join(stagingDir, "_locales"), { recursive: true });
 
   const zipName = `${target.zipPrefix}-${manifest.version}.zip`;
   const zipPath = join(buildDir, zipName);
@@ -189,6 +209,10 @@ function main() {
     return;
   }
 
+  if (!existsSync(srcDir)) {
+    throw new Error(`Source directory not found: ${srcDir}`);
+  }
+
   const selected = args.length === 0 ? ["firefox", "chrome"] : args.filter((a) => TARGETS[a]);
 
   if (selected.length === 0) {
@@ -199,6 +223,7 @@ function main() {
   }
 
   cleanLegacyBuildArtifacts();
+  validateSharedFiles();
   validateLocales();
   validateBackgroundModuleList();
 

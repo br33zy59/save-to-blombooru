@@ -117,39 +117,8 @@ async function captureMediaCaption(tabId, srcUrl) {
   }
 }
 
-function base64ToBlob(base64, mimeType) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-
-  return new Blob([bytes], { type: mimeType });
-}
-
-async function acquireTabMediaPayload(tabId, srcUrl) {
-  const normalizedTabId = normalizeTabId(tabId);
-
-  if (normalizedTabId < 0 || !srcUrl) {
-    return null;
-  }
-
-  try {
-    const payload = await runInTab(normalizedTabId, extractMediaBlobInPage, [srcUrl]);
-
-    if (!payload?.base64) {
-      return null;
-    }
-
-    return payload;
-  } catch (e) {
-    return null;
-  }
-}
-
 async function acquireMediaBlobFromTab(tabId, srcUrl) {
-  const payload = await acquireTabMediaPayload(tabId, srcUrl);
+  const payload = await probeTabMediaPayload(tabId, srcUrl);
 
   if (!payload) {
     return null;
@@ -310,13 +279,13 @@ async function fetchGalleryPreviewMedia({ tabId, srcUrl }) {
   }
 }
 
-async function resumePendingGallerySaveIfAny() {
+async function resumePendingMediaHostSaveIfAny() {
   if (hasInstallTimeBroadHostAccess() || resumingPendingSave) {
     return false;
   }
 
-  const data = await browser.storage.session.get(PENDING_GALLERY_SAVE_KEY);
-  const pending = data[PENDING_GALLERY_SAVE_KEY];
+  const data = await browser.storage.session.get(PENDING_MEDIA_HOST_SAVE_KEY);
+  const pending = data[PENDING_MEDIA_HOST_SAVE_KEY];
 
   if (!pending) {
     return false;
@@ -325,7 +294,7 @@ async function resumePendingGallerySaveIfAny() {
   resumingPendingSave = true;
 
   try {
-    await browser.storage.session.remove(PENDING_GALLERY_SAVE_KEY);
+    await browser.storage.session.remove(PENDING_MEDIA_HOST_SAVE_KEY);
     await saveMediaToBlombooru({
       ...pending,
       booruPermissionsPreGranted: true,
@@ -333,61 +302,17 @@ async function resumePendingGallerySaveIfAny() {
     });
     return true;
   } catch (err) {
-    console.warn("Resume pending gallery save failed:", err);
+    console.warn("Resume pending media-host save failed:", err);
     return false;
   } finally {
     resumingPendingSave = false;
   }
 }
-
-async function resumePendingContextMenuSaveIfAny() {
-  if (hasInstallTimeBroadHostAccess() || resumingPendingSave) {
-    return false;
-  }
-
-  const data = await browser.storage.session.get(PENDING_CONTEXT_MENU_SAVE_KEY);
-  const pending = data[PENDING_CONTEXT_MENU_SAVE_KEY];
-
-  if (!pending) {
-    return false;
-  }
-
-  resumingPendingSave = true;
-
-  try {
-    await browser.storage.session.remove(PENDING_CONTEXT_MENU_SAVE_KEY);
-    await saveMediaToBlombooru({
-      ...pending,
-      booruPermissionsPreGranted: true,
-      mediaPermissionsPreGranted: true
-    });
-    return true;
-  } catch (err) {
-    console.warn("Resume pending context-menu save failed:", err);
-    return false;
-  } finally {
-    resumingPendingSave = false;
-  }
-}
-
-async function resumeAnyPendingSaveIfAny() {
-  if (await resumePendingGallerySaveIfAny()) {
-    return true;
-  }
-
-  return resumePendingContextMenuSaveIfAny();
-}
-
 
 function notifySaveNeedsMediaHostPermissionPopupRetry(srcUrl) {
   const host = hostPermissionHostLabel(srcUrl);
 
-  browser.notifications.create({
-    type: "basic",
-    iconUrl: browser.runtime.getURL("icon.png"),
-    title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-    message: browser.i18n.getMessage("notifyGrantMediaHostPermissionPopup", host)
-  });
+  notifyUploadFailed(browser.i18n.getMessage("notifyGrantMediaHostPermissionPopup", host));
 }
 
 function isUploadAuthError(err) {
@@ -398,24 +323,25 @@ function isUploadAuthError(err) {
 }
 
 function notifyUploadAuthAdminLoginRequired() {
-  browser.notifications.create({
-    type: "basic",
-    iconUrl: browser.runtime.getURL("icon.png"),
-    title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-    message: browser.i18n.getMessage("notifyUploadAuthAdminLogin")
-  });
+  notifyUploadFailed(browser.i18n.getMessage("notifyUploadAuthAdminLogin"));
 }
 
-async function deferUploadAuthPopupRetry({ serverId, booruUrl }) {
-  await persistPendingUploadAuth({ serverId, booruUrl });
-
-  notifyUploadAuthAdminLoginRequired();
+async function deferPopupRetry(persist, notify) {
+  await persist();
+  notify();
 
   try {
     await browser.action.openPopup();
   } catch (err) {
-    console.warn("Could not open extension popup for upload auth retry:", err);
+    console.warn("Could not open extension popup:", err);
   }
+}
+
+async function deferUploadAuthPopupRetry({ serverId, booruUrl }) {
+  await deferPopupRetry(
+    () => persistPendingUploadAuth({ serverId, booruUrl }),
+    notifyUploadAuthAdminLoginRequired
+  );
 }
 
 async function deferSaveForMediaHostPermissionPopupRetry({
@@ -425,29 +351,17 @@ async function deferSaveForMediaHostPermissionPopupRetry({
   serverId,
   tabPayload
 }) {
-  await persistPendingMediaHostSave({
-    tabId,
-    pageUrl,
-    srcUrl,
-    serverId,
-    tabPayload
-  });
-
-  notifySaveNeedsMediaHostPermissionPopupRetry(srcUrl);
-
-  try {
-    await browser.action.openPopup();
-  } catch (err) {
-    console.warn("Could not open extension popup for host permission retry:", err);
-  }
-}
-
-function resolutionMediaContext(resolution) {
-  return {
-    displayUrl: resolution.displayUrl,
-    uploadUrl: resolution.uploadUrl,
-    fullOnPage: Boolean(resolution.fullOnPage)
-  };
+  await deferPopupRetry(
+    () =>
+      persistPendingMediaHostSave({
+        tabId,
+        pageUrl,
+        srcUrl,
+        serverId,
+        tabPayload
+      }),
+    () => notifySaveNeedsMediaHostPermissionPopupRetry(srcUrl)
+  );
 }
 
 async function saveMediaToBlombooru({
@@ -456,9 +370,8 @@ async function saveMediaToBlombooru({
   srcUrl,
   serverId,
   tabPayload = null,
-  permissionsPreGranted = false,
-  booruPermissionsPreGranted,
-  mediaPermissionsPreGranted
+  booruPermissionsPreGranted = false,
+  mediaPermissionsPreGranted = false
 }) {
   const servers = await getServersFromStorage();
   const server = findServerById(servers, serverId);
@@ -472,12 +385,10 @@ async function saveMediaToBlombooru({
   }
 
   const normalizedTabId = normalizeTabId(tabId);
-  const booruPreGranted = booruPermissionsPreGranted ?? permissionsPreGranted;
-  const mediaPreGranted = mediaPermissionsPreGranted ?? permissionsPreGranted;
   const requestBooruPermission =
-    !booruPreGranted && !hasInstallTimeBroadHostAccess();
+    !booruPermissionsPreGranted && !hasInstallTimeBroadHostAccess();
   const requestMediaPermission =
-    !mediaPreGranted && !hasInstallTimeBroadHostAccess();
+    !mediaPermissionsPreGranted && !hasInstallTimeBroadHostAccess();
   const booruOriginPattern = originPatternFromUrl(server.booruUrl);
   const hasBooruAccess = await ensureHostPermission(
     booruOriginPattern,
@@ -507,12 +418,7 @@ async function saveMediaToBlombooru({
         ? browser.i18n.getMessage("errorUnsupportedUploadFormat")
         : err.message;
 
-    browser.notifications.create({
-      type: "basic",
-      iconUrl: browser.runtime.getURL("icon.png"),
-      title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-      message
-    });
+    notifyUploadFailed(message);
     throw new Error(message);
   }
 
@@ -527,7 +433,6 @@ async function saveMediaToBlombooru({
 
 const contextMenuMediaCache = new Map();
 let configuredServersForMenus = [];
-const PENDING_GALLERY_SAVE_KEY = "pendingGallerySave";
 let resumingPendingSave = false;
 
 function contextMenuMediaCacheKey(tabId, srcUrl) {
@@ -604,7 +509,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   const displayProbeUrl = isFullChoice ? null : info.srcUrl;
   const displayProbePromise =
     displayProbeUrl && tabId >= 0
-      ? acquireTabMediaPayload(tabId, displayProbeUrl)
+      ? probeTabMediaPayload(tabId, displayProbeUrl)
       : Promise.resolve(null);
   const resolutionPromise = resolveContextMenuMedia(tabId, info.srcUrl);
 
@@ -621,7 +526,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
   let tabPayload = await displayProbePromise;
 
   if (tabId >= 0 && srcUrl !== displayProbeUrl) {
-    const uploadProbe = await acquireTabMediaPayload(tabId, srcUrl);
+    const uploadProbe = await probeTabMediaPayload(tabId, srcUrl);
 
     if (uploadProbe?.base64) {
       tabPayload = uploadProbe;
@@ -664,14 +569,6 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === "fetchGalleryPreviewMedia") {
     fetchGalleryPreviewMedia(message.payload)
       .then((result) => sendResponse(result))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
-
-    return true;
-  }
-
-  if (message?.type === "resumePendingGallerySave") {
-    resumePendingGallerySaveIfAny()
-      .then((ok) => sendResponse({ ok }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
 
     return true;
@@ -721,7 +618,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 if (browser.permissions.onAdded) {
   browser.permissions.onAdded.addListener(() => {
-    void resumeAnyPendingSaveIfAny();
+    void resumePendingMediaHostSaveIfAny();
   });
 }
 
@@ -1009,12 +906,7 @@ async function performUpload(data) {
       }
     }
 
-    browser.notifications.create({
-      type: "basic",
-      iconUrl: browser.runtime.getURL("icon.png"),
-      title: browser.i18n.getMessage("notificationUploadFailedTitle"),
-      message: err.message
-    });
+    notifyUploadFailed(err.message);
     throw err;
   }
 }

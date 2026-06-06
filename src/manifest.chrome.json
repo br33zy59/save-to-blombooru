@@ -5,38 +5,17 @@
   "version": "1.2",
   "description": "__MSG_extensionDescription__",
 
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "save-to-blombooru@foo",
-      "strict_min_version": "140.0",
-      "data_collection_permissions": {
-        "required": ["none"]
-      }
-    }
-  },
-
   "permissions": [
     "activeTab",
     "contextMenus",
     "storage",
     "tabs",
+    "windows",
     "notifications",
     "scripting"
   ],
 
   "optional_host_permissions": ["http://*/*", "https://*/*"],
-
-  "background": {
-    "scripts": [
-      "browser.js",
-      "permissions.js",
-      "tab-scripting.js",
-      "media-context.js",
-      "servers.js",
-      "auth.js",
-      "background.js"
-    ]
-  },
 
   "action": {
     "default_icon": "icon.png",
