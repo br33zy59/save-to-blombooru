@@ -434,6 +434,7 @@ async function saveMediaToBlombooru({
 const contextMenuMediaCache = new Map();
 let configuredServersForMenus = [];
 let resumingPendingSave = false;
+let activeContextMenuInstanceId = null;
 
 function contextMenuMediaCacheKey(tabId, srcUrl) {
   return `${tabId}:${srcUrl}`;
@@ -464,8 +465,12 @@ async function resolveContextMenuMedia(tabId, srcUrl) {
       [srcUrl]
     );
 
-    if (resolved?.displayUrl) {
+    if (resolved?.displayUrl && resolved.resolveMethod != null) {
       contextMenuMediaCache.set(cacheKey, resolved);
+      return resolved;
+    }
+
+    if (resolved?.displayUrl) {
       return resolved;
     }
   } catch (e) {
@@ -679,7 +684,7 @@ async function updateContextMenus(pageUrl = null) {
   }
 }
 
-async function refreshContextMenusForMedia(info, tab) {
+async function refreshContextMenusForMedia(info, tab, menuInstanceId) {
   if (!info.srcUrl || tab?.id == null) {
     return;
   }
@@ -697,6 +702,14 @@ async function refreshContextMenusForMedia(info, tab) {
   );
 
   const resolution = await resolveContextMenuMedia(tab.id, info.srcUrl);
+
+  if (
+    menuInstanceId != null &&
+    activeContextMenuInstanceId !== menuInstanceId
+  ) {
+    return;
+  }
+
   const showFullChoice = Boolean(resolution.fullUrlAvailable);
   const displayVariant = showFullChoice ? "thumbnail" : "default";
 
@@ -729,9 +742,13 @@ async function refreshContextMenusForMedia(info, tab) {
 
 if (browser.contextMenus.onShown) {
   browser.contextMenus.onShown.addListener((info, tab) => {
-    refreshContextMenusForMedia(info, tab).catch((err) => {
-      console.warn("Context menu refresh failed:", err);
-    });
+    activeContextMenuInstanceId = info.menuInstanceId ?? null;
+
+    refreshContextMenusForMedia(info, tab, activeContextMenuInstanceId).catch(
+      (err) => {
+        console.warn("Context menu refresh failed:", err);
+      }
+    );
   });
 }
 

@@ -862,6 +862,30 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     };
   }
 
+  /** True when two URLs refer to the same resource for right-click lookup. */
+  function urlsMatchForLookup(urlA, urlB) {
+    if (!urlA || !urlB) {
+      return false;
+    }
+
+    if (urlA === urlB || urlsReferToSameMedia(urlA, urlB)) {
+      return true;
+    }
+
+    try {
+      const a = new URL(urlA);
+      const b = new URL(urlB);
+
+      return (
+        a.hostname === b.hostname &&
+        a.pathname === b.pathname &&
+        a.search === b.search
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
   function collectElementUrls(el) {
     const urls = new Set();
     const add = (value) => {
@@ -881,7 +905,66 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       }
     }
 
+    for (const attr of DATA_FULL_ATTRS) {
+      add(el.getAttribute(attr));
+    }
+
     return urls;
+  }
+
+  function elementUrlsMatchTarget(el, targetUrl) {
+    for (const url of collectElementUrls(el)) {
+      if (urlsMatchForLookup(url, targetUrl)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function mediaDisplayUrl(media) {
+    if (media instanceof HTMLImageElement) {
+      return normalizeMediaUrl(media.currentSrc || media.src);
+    }
+
+    if (media instanceof HTMLVideoElement) {
+      return (
+        normalizeMediaUrl(getVideoPosterUrl(media)) ||
+        normalizeMediaUrl(getVideoStreamUrl(media))
+      );
+    }
+
+    return null;
+  }
+
+  function resolveMediaElementFromAnchor(targetUrl) {
+    const normalized = normalizeMediaUrl(targetUrl);
+    if (!normalized) {
+      return null;
+    }
+
+    for (const anchor of document.querySelectorAll("a.fileThumb[href], a[href]")) {
+      const href = normalizeMediaUrl(anchor.href);
+      if (!href || !looksLikeUploadableMediaUrl(href)) {
+        continue;
+      }
+
+      const media = anchor.querySelector("img, video");
+      if (!media) {
+        continue;
+      }
+
+      const displayUrl = mediaDisplayUrl(media);
+
+      if (
+        urlsMatchForLookup(href, normalized) ||
+        (displayUrl && urlsMatchForLookup(displayUrl, normalized))
+      ) {
+        return media;
+      }
+    }
+
+    return null;
   }
 
   function findMediaElementForUrl(targetUrl) {
@@ -890,16 +973,42 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       return null;
     }
 
+    let fallback = null;
+
     for (const el of document.querySelectorAll("img, video")) {
-      if (collectElementUrls(el).has(normalized)) {
+      if (!elementUrlsMatchTarget(el, normalized)) {
+        continue;
+      }
+
+      if (findAnchorMediaUrl(el)) {
         return el;
+      }
+
+      if (!fallback) {
+        fallback = el;
       }
     }
 
+    if (fallback) {
+      return fallback;
+    }
+
     for (const source of document.querySelectorAll("picture source, video source")) {
-      if (collectElementUrls(source).has(normalized)) {
+      if (elementUrlsMatchTarget(source, normalized)) {
         return source.closest("picture, video") || source;
       }
+    }
+
+    return resolveMediaElementFromAnchor(normalized);
+  }
+
+  function itemForMediaElement(el) {
+    if (el instanceof HTMLImageElement) {
+      return buildImageItem(el);
+    }
+
+    if (el instanceof HTMLVideoElement) {
+      return buildVideoItem(el);
     }
 
     return null;
@@ -916,19 +1025,10 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     }
 
     const el = findMediaElementForUrl(normalized);
+    const item = el ? itemForMediaElement(el) : null;
 
-    if (el instanceof HTMLImageElement) {
-      const item = buildImageItem(el);
-      if (item) {
-        return item;
-      }
-    }
-
-    if (el instanceof HTMLVideoElement) {
-      const item = buildVideoItem(el);
-      if (item) {
-        return item;
-      }
+    if (item) {
+      return item;
     }
 
     return {

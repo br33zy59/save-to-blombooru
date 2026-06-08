@@ -4,6 +4,8 @@
 
 A **Firefox** and **Chrome** extension to push media to a [Blombooru](https://github.com/mrblomblo/blombooru) instance while browsing the web.
 
+![Screenshot of the GUI](assets/readme_ss1.png) ![Screenshot of the GUI](assets/readme_ss2.png) ![Screenshot of the GUI](assets/readme_ss3.png)
+
 
 ## Install
 
