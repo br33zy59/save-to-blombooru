@@ -1,15 +1,28 @@
 # Save to Blombooru
 
-**Right-click to send any image/video to your Blombooru**
+**Quickly save any web image/video to your personal booru**
 
 A **Firefox** and **Chrome** extension to push media to a [Blombooru](https://github.com/mrblomblo/blombooru) instance while browsing the web.
 
-![Screenshot of the GUI](assets/readme_ss1.png) ![Screenshot of the GUI](assets/readme_ss2.png) ![Screenshot of the GUI](assets/readme_ss3.png)
+## Features
 
+- Easy right-click 'Save to Blombooru' functionality
+
+  ![Screenshot of the extension context menu with a single server definition](assets/readme_ss3.png)
+
+- Fast handling of multiple servers and content ratings (configurable)
+
+  ![Screenshot of the extension context menu with multiple server definitions](assets/readme_ss2.png) 
+
+- Simple gallery listing for all media items on the current web page, with easy upload to blombooru
+
+  ![Screenshot of the 'page gallery' feature](assets/readme_ss1.png)
+
+- Thumbnail detection - Where thumbnails link to a full-size image or video, you will be offered an option to upload the full item.
 
 ## Install
 
-You'll need:
+Prerequisites:
 
 - **Firefox**, **Chrome**, or a derivative (e.g. Edge, LibreWolf) that supports extensions.
 - A working **Blombooru** installation on your LAN or reachable over the Internet.
@@ -20,12 +33,11 @@ Click the appropriate link below to install for your browser:
 
 [![Install on Firefox](https://img.shields.io/badge/Install%20on-Firefox-FF7139?logo=firefoxbrowser&logoColor=white&style=for-the-badge)](https://addons.mozilla.org/en-US/firefox/addon/save-to-blombooru@foo/)
 
+### Configure servers
 
-### Configure Blombooru
-
-1. Click the extension icon (or **Add-ons** → **Save to Blombooru** → **Options**).
-2. Enter your Blombooru URL (same origin you use in the browser, e.g. `http://192.168.0.50:8000`).
-3. Grant host access if prompted.
+1. Click the toolbar icon and select **settings** (or navigate to your browser's **Add-ons** menu → **Save to Blombooru** → **Options**).
+2. Enter your Blombooru URL (same address that you use to access it, e.g. `http://192.168.0.50:8000`).
+3. You may be prompted to allow host access to the blombooru server. This is necessary for the extension to function.
 4. Wait for **Connection successful**, then **Save Settings**.
 5. Optionally set a **friendly name** (right-click menu) and **default rating**.
 
@@ -33,15 +45,18 @@ If you do not use an API key, log into the Blombooru admin UI once in the same b
 
 To add another server, use **Add another server**, then save.
 
-## Upload
+## Using the extension
 
-1. Right-click an image or video.
+1. Right-click an image or video on a web page.
 2. Choose **Save to Blombooru**.
-3. Watch the toolbar badge for status.
 
-Failed uploads show a notification with the error.
+Alternative usage:
 
----
+1. Select the extension icon on the toolbar
+2. A gallery will appear showing all media on the current page
+3. Click the items you wish to push to your booru
+
+**Note:** Media items on the current page will save to your booru immediately. Downstream 'full' images and videos that are linked via thumbnails may prompt for permission to access the remote website. Once this has been allowed, it will remain valid for any other content served from the same web host.
 
 ## Development / Sideload Install
 
@@ -109,15 +124,11 @@ save-to-blombooru/
 
 The build writes a single `manifest.json` into each staging directory (background section merged from the platform entrypoints above).
 
----
-
 ## Contributing & license
 
 Issues and pull requests are welcome.
 
 Released under the [MIT License](LICENSE).
-
----
 
 ## Acknowledgements
 
