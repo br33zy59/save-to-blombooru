@@ -192,7 +192,7 @@ async function resolveMediaBlob(
     return fetchMediaBlob(srcUrl, false);
   }
 
-  let blob = mediaBlobFromTabPayload(tabPayload);
+  let blob = mediaBlobFromTabPayload(tabPayloadForSrcUrl(tabPayload, srcUrl));
 
   if (!blob && normalizedTabId >= 0) {
     try {
@@ -434,25 +434,35 @@ async function saveMediaToBlombooru({
 const contextMenuMediaCache = new Map();
 let configuredServersForMenus = [];
 let resumingPendingSave = false;
-let activeContextMenuInstanceId = null;
 
 function contextMenuMediaCacheKey(tabId, srcUrl) {
   return `${tabId}:${srcUrl}`;
 }
 
-async function resolveContextMenuMedia(tabId, srcUrl) {
+function invalidateContextMenuMediaCacheForTab(tabId) {
+  const normalizedTabId = normalizeTabId(tabId);
+  const prefix = `${normalizedTabId}:`;
+
+  for (const key of contextMenuMediaCache.keys()) {
+    if (key.startsWith(prefix)) {
+      contextMenuMediaCache.delete(key);
+    }
+  }
+}
+
+async function resolveContextMenuMedia(tabId, srcUrl, { useCache = true } = {}) {
   const normalizedTabId = normalizeTabId(tabId);
 
   if (!srcUrl || normalizedTabId < 0) {
     return {
       displayUrl: srcUrl,
       uploadUrl: srcUrl,
-      fullUrlAvailable: false
+      resolveMethod: "fallback"
     };
   }
 
   const cacheKey = contextMenuMediaCacheKey(normalizedTabId, srcUrl);
-  const cached = contextMenuMediaCache.get(cacheKey);
+  const cached = useCache ? contextMenuMediaCache.get(cacheKey) : null;
 
   if (cached) {
     return cached;
@@ -480,24 +490,15 @@ async function resolveContextMenuMedia(tabId, srcUrl) {
   return {
     displayUrl: srcUrl,
     uploadUrl: srcUrl,
-    fullUrlAvailable: false
+    resolveMethod: "fallback"
   };
-}
-
-function uploadSrcUrlForContextMenuChoice(resolution, variant, fallbackSrcUrl) {
-  if (variant === "full" && resolution.fullUrlAvailable) {
-    return resolution.uploadUrl || fallbackSrcUrl;
-  }
-
-  return resolution.displayUrl || fallbackSrcUrl;
 }
 
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
   const tabId = normalizeTabId(info.tabId ?? tab?.id);
   const pageUrl = info.pageUrl || tab?.url || "";
-  const { serverId, variant } = parseContextMenuItemId(info.menuItemId);
+  const { serverId } = parseContextMenuItemId(info.menuItemId);
   const server = findServerById(configuredServersForMenus, serverId);
-  const isFullChoice = variant === "full";
 
   let booruRequests = [];
 
@@ -511,13 +512,6 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     // Ignore invalid booru URL.
   }
 
-  const displayProbeUrl = isFullChoice ? null : info.srcUrl;
-  const displayProbePromise =
-    displayProbeUrl && tabId >= 0
-      ? probeTabMediaPayload(tabId, displayProbeUrl)
-      : Promise.resolve(null);
-  const resolutionPromise = resolveContextMenuMedia(tabId, info.srcUrl);
-
   const booruGranted = await awaitHostPermissionRequests(booruRequests);
 
   if (!booruGranted) {
@@ -525,18 +519,15 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  const resolution = await resolutionPromise;
-  const srcUrl = uploadSrcUrlForContextMenuChoice(resolution, variant, info.srcUrl);
+  invalidateContextMenuMediaCacheForTab(tabId);
+  const resolution = await resolveContextMenuMedia(tabId, info.srcUrl, {
+    useCache: false
+  });
+  const srcUrl = resolution.uploadUrl || info.srcUrl;
 
-  let tabPayload = await displayProbePromise;
-
-  if (tabId >= 0 && srcUrl !== displayProbeUrl) {
-    const uploadProbe = await probeTabMediaPayload(tabId, srcUrl);
-
-    if (uploadProbe?.base64) {
-      tabPayload = uploadProbe;
-    }
-  }
+  const tabPayload =
+    tabId >= 0 ? await probeTabMediaPayload(tabId, srcUrl) : null;
+  const matchingTabPayload = tabPayloadForSrcUrl(tabPayload, srcUrl);
 
   if (needsMediaHostPermissionPrompt(srcUrl, pageUrl, tabPayload)) {
     if (!(await hostPermissionsGrantedForUrl(srcUrl))) {
@@ -545,7 +536,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         pageUrl,
         srcUrl,
         serverId,
-        tabPayload
+        tabPayload: matchingTabPayload
       });
       return;
     }
@@ -556,7 +547,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     pageUrl,
     srcUrl,
     serverId,
-    tabPayload,
+    tabPayload: matchingTabPayload,
     booruPermissionsPreGranted: true,
     mediaPermissionsPreGranted: true
   });
@@ -671,85 +662,10 @@ async function updateContextMenus(pageUrl = null) {
 
     await browser.contextMenus.create({
       id: server.id,
-      title: getServerMenuTitle(server, servers, "default"),
+      title: getServerMenuTitle(server, servers),
       contexts: ["image", "video"]
     });
-
-    await browser.contextMenus.create({
-      id: getContextMenuFullItemId(server.id),
-      title: getServerMenuTitle(server, servers, "full"),
-      contexts: ["image", "video"],
-      visible: false
-    });
   }
-}
-
-async function refreshContextMenusForMedia(info, tab, menuInstanceId) {
-  if (!info.srcUrl || tab?.id == null) {
-    return;
-  }
-
-  const hasMediaContext =
-    info.contexts?.includes("image") || info.contexts?.includes("video");
-
-  if (!hasMediaContext) {
-    return;
-  }
-
-  const resolvedPageUrl = info.pageUrl || tab.url || null;
-  const servers = getConfiguredServers(await getServersFromStorage()).filter(
-    (server) => !resolvedPageUrl || !isSameServerOrigin(resolvedPageUrl, server.booruUrl)
-  );
-
-  const resolution = await resolveContextMenuMedia(tab.id, info.srcUrl);
-
-  if (
-    menuInstanceId != null &&
-    activeContextMenuInstanceId !== menuInstanceId
-  ) {
-    return;
-  }
-
-  const showFullChoice = Boolean(resolution.fullUrlAvailable);
-  const displayVariant = showFullChoice ? "thumbnail" : "default";
-
-  for (const server of servers) {
-    const fullItemId = getContextMenuFullItemId(server.id);
-
-    try {
-      await browser.contextMenus.update(server.id, {
-        title: getServerMenuTitle(server, servers, displayVariant),
-        visible: true
-      });
-    } catch (e) {
-      // Item may not exist if server was removed mid-menu.
-    }
-
-    try {
-      await browser.contextMenus.update(fullItemId, {
-        title: getServerMenuTitle(server, servers, "full"),
-        visible: showFullChoice
-      });
-    } catch (e) {
-      // Hidden full item may not exist yet.
-    }
-  }
-
-  if (browser.contextMenus.refresh) {
-    await browser.contextMenus.refresh();
-  }
-}
-
-if (browser.contextMenus.onShown) {
-  browser.contextMenus.onShown.addListener((info, tab) => {
-    activeContextMenuInstanceId = info.menuInstanceId ?? null;
-
-    refreshContextMenusForMedia(info, tab, activeContextMenuInstanceId).catch(
-      (err) => {
-        console.warn("Context menu refresh failed:", err);
-      }
-    );
-  });
 }
 
 async function syncContextMenuVisibilityForPageUrl(pageUrl) {

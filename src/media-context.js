@@ -336,7 +336,7 @@ async function extractMediaBlobInPage(srcUrl) {
 }
 
 // Injected to list images/videos on the page for the toolbar popup gallery.
-// Optional lookupSrcUrl: resolve thumbnail vs full for a single right-clicked URL.
+// Optional lookupSrcUrl: resolve best upload URL for a single right-clicked URL.
 // Upload targets match Blombooru: JPG, PNG, WEBP, GIF, MP4, WEBM.
 function enumeratePageMediaInPage(lookupSrcUrl) {
   const BOORU_VIDEO_EXT_RE = /\.(mp4|webm)(\?|$)/i;
@@ -665,30 +665,64 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     return false;
   }
 
-  function resolveFullCandidate(displayUrl, img) {
-    const candidates = [];
-
-    const largestSrcset = pickLargestSrcset(img);
-    if (largestSrcset?.url && !urlsReferToSameMedia(displayUrl, largestSrcset.url)) {
-      candidates.push({ url: largestSrcset.url, method: "srcset" });
+  function urlFromMediaElement(mediaEl) {
+    if (mediaEl instanceof HTMLImageElement) {
+      return normalizeMediaUrl(mediaEl.currentSrc || mediaEl.src);
     }
 
-    const anchorUrl = findAnchorMediaUrl(img);
-    if (anchorUrl && !urlsReferToSameMedia(displayUrl, anchorUrl)) {
-      candidates.push({ url: anchorUrl, method: "anchor" });
+    if (mediaEl instanceof HTMLVideoElement) {
+      return getVideoStreamUrl(mediaEl) || normalizeMediaUrl(mediaEl.currentSrc || mediaEl.src);
     }
 
-    const dataRef = findDataAttributeMediaUrl(img);
+    return null;
+  }
+
+  function hasDistinctUploadUrl(displayUrl, uploadUrl) {
+    return Boolean(
+      displayUrl && uploadUrl && !urlsReferToSameMedia(displayUrl, uploadUrl)
+    );
+  }
+
+  /** Anchor-first chain; srcset keeps confidence checks as the last fallback. */
+  function resolveBestUploadUrl(el, displayUrl) {
+    const anchorUrl = findAnchorMediaUrl(el);
+    if (anchorUrl && hasDistinctUploadUrl(displayUrl, anchorUrl)) {
+      return { url: anchorUrl, method: "anchor" };
+    }
+
+    if (
+      el instanceof HTMLImageElement ||
+      (el instanceof HTMLVideoElement && isLikelyThumbUrl(displayUrl))
+    ) {
+      const fullEl = findDynamicFullNearThumb(el, displayUrl);
+      if (fullEl) {
+        const dynamicUrl = urlFromMediaElement(fullEl);
+        if (dynamicUrl && hasDistinctUploadUrl(displayUrl, dynamicUrl)) {
+          return { url: dynamicUrl, method: "dynamic-full" };
+        }
+      }
+    }
+
+    const dataRef = findDataAttributeMediaUrl(el);
     if (dataRef && !isDataAttrDuplicateReference(displayUrl, dataRef)) {
-      candidates.push({ url: dataRef.url, method: "data-attr" });
+      return { url: dataRef.url, method: "data-attr" };
     }
 
-    const order = { anchor: 0, "data-attr": 1, "video-src": 2, srcset: 3 };
-    candidates.sort((a, b) => order[a.method] - order[b.method]);
+    if (el instanceof HTMLVideoElement) {
+      const streamUrl = getVideoStreamUrl(el);
+      if (streamUrl && hasDistinctUploadUrl(displayUrl, streamUrl)) {
+        return { url: streamUrl, method: "video-src" };
+      }
+    }
 
-    for (const candidate of candidates) {
-      if (isHighConfidenceFull(displayUrl, candidate.url, candidate.method, img)) {
-        return candidate;
+    if (el instanceof HTMLImageElement) {
+      const largestSrcset = pickLargestSrcset(el);
+      if (
+        largestSrcset?.url &&
+        hasDistinctUploadUrl(displayUrl, largestSrcset.url) &&
+        isHighConfidenceFull(displayUrl, largestSrcset.url, "srcset", el)
+      ) {
+        return { url: largestSrcset.url, method: "srcset" };
       }
     }
 
@@ -754,64 +788,14 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     return null;
   }
 
-  function isHighConfidenceVideoFull(displayUrl, fullUrl, method) {
-    if (!fullUrl || urlsReferToSameMedia(displayUrl, fullUrl)) {
-      return false;
-    }
-
-    if (looksLikeDirectVideoUrl(fullUrl)) {
-      if (looksLikeDirectImageUrl(displayUrl) && !looksLikeDirectVideoUrl(displayUrl)) {
-        return true;
-      }
-
-      return method === "video-src" || method === "anchor" || method === "data-attr";
-    }
-
-    if (looksLikeDirectAnimatedImageUrl(fullUrl) && looksLikeDirectImageUrl(displayUrl)) {
-      return method === "anchor" || method === "data-attr";
-    }
-
-    return false;
-  }
-
-  function resolveVideoFullCandidate(displayUrl, video) {
-    const candidates = [];
-    const streamUrl = getVideoStreamUrl(video);
-
-    if (streamUrl && !urlsReferToSameMedia(displayUrl, streamUrl)) {
-      candidates.push({ url: streamUrl, method: "video-src" });
-    }
-
-    const anchorUrl = findAnchorMediaUrl(video);
-    if (anchorUrl && !urlsReferToSameMedia(displayUrl, anchorUrl)) {
-      candidates.push({ url: anchorUrl, method: "anchor" });
-    }
-
-    const dataRef = findDataAttributeMediaUrl(video);
-    if (dataRef && !isDataAttrDuplicateReference(displayUrl, dataRef)) {
-      candidates.push({ url: dataRef.url, method: "data-attr" });
-    }
-
-    const order = { anchor: 0, "data-attr": 1, "video-src": 2 };
-    candidates.sort((a, b) => order[a.method] - order[b.method]);
-
-    for (const candidate of candidates) {
-      if (isHighConfidenceVideoFull(displayUrl, candidate.url, candidate.method)) {
-        return candidate;
-      }
-    }
-
-    return null;
-  }
-
   function buildImageItem(img) {
     const displayUrl = normalizeMediaUrl(img.currentSrc || img.src);
     if (!displayUrl || !isUsableMediaUrl(displayUrl)) {
       return null;
     }
 
-    const full = resolveFullCandidate(displayUrl, img);
-    const uploadUrl = full?.url || displayUrl;
+    const best = resolveBestUploadUrl(img, displayUrl);
+    const uploadUrl = best?.url || displayUrl;
     let kind = looksLikeDirectVideoUrl(uploadUrl) ? "video" : "image";
 
     if (kind === "image" && looksLikeDirectAnimatedImageUrl(uploadUrl)) {
@@ -821,8 +805,7 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     return {
       displayUrl,
       uploadUrl,
-      fullUrlAvailable: Boolean(full),
-      resolveMethod: full?.method || "display",
+      resolveMethod: best?.method || "display",
       kind,
       filename: filenameFromUrl(displayUrl),
       intrinsicWidth:
@@ -847,14 +830,13 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       return null;
     }
 
-    const full = resolveVideoFullCandidate(displayUrl, video);
-    const uploadUrl = full?.url || streamUrl || displayUrl;
+    const best = resolveBestUploadUrl(video, displayUrl);
+    const uploadUrl = best?.url || streamUrl || displayUrl;
 
     return {
       displayUrl,
       uploadUrl,
-      fullUrlAvailable: Boolean(full),
-      resolveMethod: full?.method || "display",
+      resolveMethod: best?.method || "display",
       kind: "video",
       filename: filenameFromUrl(uploadUrl),
       intrinsicWidth: video.videoWidth || video.width || 0,
@@ -937,30 +919,206 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     return null;
   }
 
+  function isLikelyThumbUrl(url) {
+    if (!url) {
+      return false;
+    }
+
+    if (THUMB_PATH_RE.test(url)) {
+      return true;
+    }
+
+    try {
+      const path = new URL(url).pathname;
+      // boards like 4chan: full is 12345.jpg, thumb is 12345s.jpg
+      return /s\.(jpe?g|png|gif|webp)$/i.test(path);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function findIhoverFullForThumb(thumbEl, targetUrl) {
+    const ihover = document.getElementById("ihover");
+    if (!(ihover instanceof HTMLImageElement || ihover instanceof HTMLVideoElement)) {
+      return null;
+    }
+
+    const ihoverUrl = normalizeMediaUrl(ihover.currentSrc || ihover.src);
+    if (!ihoverUrl) {
+      return null;
+    }
+
+    if (urlsMatchForLookup(ihoverUrl, targetUrl)) {
+      return ihover;
+    }
+
+    const anchor = thumbEl.closest("a[data-fullid], a.fileThumb, a");
+    const postRoot = thumbEl.closest(".post, [id^='p']");
+    const fullId =
+      anchor?.dataset?.fullID ||
+      anchor?.dataset?.fullid ||
+      postRoot?.id?.replace(/^p/i, "");
+
+    if (fullId && ihover.dataset?.fullID === fullId) {
+      return ihover;
+    }
+
+    const anchorUrl = findAnchorMediaUrl(thumbEl);
+    if (anchorUrl && urlsMatchForLookup(ihoverUrl, anchorUrl)) {
+      return ihover;
+    }
+
+    return null;
+  }
+
+  /** Full image/video injected beside a thumb (e.g. 4chan X expand or hover). */
+  function findDynamicFullNearThumb(thumbEl, targetUrl) {
+    const anchor = thumbEl.closest("a.fileThumb, a");
+
+    if (anchor) {
+      for (const el of anchor.querySelectorAll(".full-image, video, img")) {
+        if (el === thumbEl) {
+          continue;
+        }
+
+        if (el instanceof HTMLImageElement || el instanceof HTMLVideoElement) {
+          return el;
+        }
+      }
+
+      let next = anchor.nextElementSibling;
+      while (next) {
+        if (
+          next.classList?.contains("full-image") ||
+          next instanceof HTMLImageElement ||
+          next instanceof HTMLVideoElement
+        ) {
+          return next;
+        }
+
+        next = next.nextElementSibling;
+      }
+    }
+
+    const fileContainer = thumbEl.closest(".file");
+    if (fileContainer) {
+      for (const el of fileContainer.querySelectorAll(".full-image, video")) {
+        if (el === thumbEl) {
+          continue;
+        }
+
+        if (el instanceof HTMLImageElement || el instanceof HTMLVideoElement) {
+          return el;
+        }
+      }
+    }
+
+    return findIhoverFullForThumb(thumbEl, targetUrl);
+  }
+
+  function scoreMediaElementForUrl(el, targetUrl) {
+    let score = 0;
+
+    if (el instanceof HTMLVideoElement) {
+      score += 16;
+    }
+
+    if (el.classList?.contains("full-image")) {
+      score += 32;
+    }
+
+    if (el.id === "ihover") {
+      score += 28;
+    }
+
+    const streamUrl =
+      el instanceof HTMLVideoElement ? getVideoStreamUrl(el) : null;
+    const imageUrl =
+      el instanceof HTMLImageElement
+        ? normalizeMediaUrl(el.currentSrc || el.src)
+        : null;
+
+    if (streamUrl && urlsMatchForLookup(streamUrl, targetUrl)) {
+      score += 48;
+    }
+
+    if (imageUrl && urlsMatchForLookup(imageUrl, targetUrl)) {
+      score += 36;
+    }
+
+    if (el.poster && urlsMatchForLookup(el.poster, targetUrl)) {
+      score += 4;
+    }
+
+    if (looksLikeDirectVideoUrl(targetUrl) && el instanceof HTMLVideoElement) {
+      score += 12;
+    }
+
+    if (imageUrl && isLikelyThumbUrl(imageUrl)) {
+      score -= 8;
+    }
+
+    const anchorUrl = findAnchorMediaUrl(el);
+    if (anchorUrl) {
+      score += 6;
+
+      if (urlsMatchForLookup(anchorUrl, targetUrl)) {
+        score += 10;
+      }
+    }
+
+    const width =
+      el instanceof HTMLImageElement
+        ? el.naturalWidth || el.width || 0
+        : el.videoWidth || el.width || 0;
+
+    if (width > 400) {
+      score += 8;
+    } else if (width > 200) {
+      score += 4;
+    }
+
+    return score;
+  }
+
   function resolveMediaElementFromAnchor(targetUrl) {
     const normalized = normalizeMediaUrl(targetUrl);
     if (!normalized) {
       return null;
     }
 
-    for (const anchor of document.querySelectorAll("a.fileThumb[href], a[href]")) {
+    for (const anchor of document.querySelectorAll(
+      "a.fileThumb[href], a.fileThumb, a[href]"
+    )) {
       const href = normalizeMediaUrl(anchor.href);
-      if (!href || !looksLikeUploadableMediaUrl(href)) {
+      const hrefMatches =
+        href &&
+        looksLikeUploadableMediaUrl(href) &&
+        urlsMatchForLookup(href, normalized);
+
+      const thumb = anchor.querySelector("img, video");
+      const displayUrl = thumb ? mediaDisplayUrl(thumb) : null;
+      const thumbMatches =
+        displayUrl && urlsMatchForLookup(displayUrl, normalized);
+
+      if (!hrefMatches && !thumbMatches) {
         continue;
       }
 
-      const media = anchor.querySelector("img, video");
-      if (!media) {
-        continue;
+      const fullImage = anchor.querySelector(".full-image, video.full-image");
+      if (fullImage instanceof HTMLImageElement || fullImage instanceof HTMLVideoElement) {
+        return fullImage;
       }
 
-      const displayUrl = mediaDisplayUrl(media);
+      if (hrefMatches) {
+        const dynamicFull = thumb ? findDynamicFullNearThumb(thumb, normalized) : null;
+        if (dynamicFull) {
+          return dynamicFull;
+        }
+      }
 
-      if (
-        urlsMatchForLookup(href, normalized) ||
-        (displayUrl && urlsMatchForLookup(displayUrl, normalized))
-      ) {
-        return media;
+      if (thumb) {
+        return thumb;
       }
     }
 
@@ -973,24 +1131,23 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       return null;
     }
 
-    let fallback = null;
+    let best = null;
+    let bestScore = -1;
 
     for (const el of document.querySelectorAll("img, video")) {
       if (!elementUrlsMatchTarget(el, normalized)) {
         continue;
       }
 
-      if (findAnchorMediaUrl(el)) {
-        return el;
-      }
-
-      if (!fallback) {
-        fallback = el;
+      const score = scoreMediaElementForUrl(el, normalized);
+      if (score > bestScore) {
+        bestScore = score;
+        best = el;
       }
     }
 
-    if (fallback) {
-      return fallback;
+    if (best) {
+      return best;
     }
 
     for (const source of document.querySelectorAll("picture source, video source")) {
@@ -1020,7 +1177,7 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       return {
         displayUrl: targetUrl,
         uploadUrl: targetUrl,
-        fullUrlAvailable: false
+        resolveMethod: "fallback"
       };
     }
 
@@ -1031,10 +1188,25 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       return item;
     }
 
+    if (looksLikeUploadableMediaUrl(normalized) && !isLikelyThumbUrl(normalized)) {
+      return {
+        displayUrl: normalized,
+        uploadUrl: normalized,
+        resolveMethod: "direct-url"
+      };
+    }
+
+    const anchorEl = resolveMediaElementFromAnchor(normalized);
+    const anchorItem = anchorEl ? itemForMediaElement(anchorEl) : null;
+
+    if (anchorItem) {
+      return anchorItem;
+    }
+
     return {
       displayUrl: normalized,
       uploadUrl: normalized,
-      fullUrlAvailable: false
+      resolveMethod: "fallback"
     };
   }
 
@@ -1049,7 +1221,10 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
 
   /** True when candidate is the on-page full for a thumb+full gallery entry. */
   function isFoldedFullDuplicate(candidateItem, hostItem) {
-    if (!hostItem?.fullUrlAvailable || !hostItem.uploadUrl) {
+    if (
+      !hostItem?.uploadUrl ||
+      !hasDistinctUploadUrl(hostItem.displayUrl, hostItem.uploadUrl)
+    ) {
       return false;
     }
 
@@ -1094,11 +1269,14 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
       }
     }
 
-    if (item.fullUrlAvailable && item.uploadUrl) {
+    if (hasDistinctUploadUrl(item.displayUrl, item.uploadUrl)) {
       for (let i = items.length - 1; i >= 0; i--) {
         const existing = items[i];
 
-        if (!existing.fullUrlAvailable && isFoldedFullDuplicate(existing, item)) {
+        if (
+          !hasDistinctUploadUrl(existing.displayUrl, existing.uploadUrl) &&
+          isFoldedFullDuplicate(existing, item)
+        ) {
           enrichWithFullOnPageMetadata(item, existing);
           seen.delete(existing.displayUrl);
           items.splice(i, 1);

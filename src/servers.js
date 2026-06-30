@@ -102,60 +102,28 @@ function partitionServersForPage(pageUrl, servers) {
   return { configured, available, onPage };
 }
 
-function getServerMenuTitle(server, configuredServers, variant = "default") {
+function getServerMenuTitle(server, configuredServers) {
   const name = (server.serverName || "").trim();
   const multiple = configuredServers.length > 1;
 
-  const keys =
-    variant === "full"
-      ? {
-          withName: "contextMenuFullWithName",
-          withHost: "contextMenuFullWithHost",
-          base: "contextMenuFullBase"
-        }
-      : variant === "thumbnail"
-        ? {
-            withName: "contextMenuThumbnailWithName",
-            withHost: "contextMenuThumbnailWithHost",
-            base: "contextMenuThumbnailBase"
-          }
-        : {
-            withName: "contextMenuWithName",
-            withHost: "contextMenuWithHost",
-            base: "contextMenuBase"
-          };
-
   if (name) {
-    return browser.i18n.getMessage(keys.withName, name);
+    return browser.i18n.getMessage("contextMenuWithName", name);
   }
 
   if (!multiple) {
-    return browser.i18n.getMessage(keys.base);
+    return browser.i18n.getMessage("contextMenuBase");
   }
 
   try {
     const host = new URL(server.booruUrl).host;
-    return browser.i18n.getMessage(keys.withHost, host);
+    return browser.i18n.getMessage("contextMenuWithHost", host);
   } catch (e) {
-    return browser.i18n.getMessage(keys.base);
+    return browser.i18n.getMessage("contextMenuBase");
   }
-}
-
-const CONTEXT_MENU_FULL_SUFFIX = ":full";
-
-function getContextMenuFullItemId(serverId) {
-  return `${serverId}${CONTEXT_MENU_FULL_SUFFIX}`;
 }
 
 function parseContextMenuItemId(menuItemId) {
-  if (menuItemId.endsWith(CONTEXT_MENU_FULL_SUFFIX)) {
-    return {
-      serverId: menuItemId.slice(0, -CONTEXT_MENU_FULL_SUFFIX.length),
-      variant: "full"
-    };
-  }
-
-  return { serverId: menuItemId, variant: "display" };
+  return { serverId: menuItemId };
 }
 
 function normalizeBooruBaseUrl(urlString) {

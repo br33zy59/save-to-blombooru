@@ -841,11 +841,17 @@ function showGalleryHoverPreview(
   }
 }
 
+function itemHasDistinctUpload(item) {
+  const displayUrl = item.displayUrl || item.srcUrl;
+  const uploadUrl = item.uploadUrl || displayUrl;
+
+  return Boolean(displayUrl && uploadUrl && uploadUrl !== displayUrl);
+}
+
 function bindGalleryHoverPreview(cell, item) {
   const {
     displayUrl,
     uploadUrl,
-    fullUrlAvailable,
     intrinsicWidth = 0,
     intrinsicHeight = 0,
     fullOnPage = false,
@@ -854,17 +860,16 @@ function bindGalleryHoverPreview(cell, item) {
     kind
   } = item;
   const altText = item.filename || item.kind;
+  const hasDistinctUpload = itemHasDistinctUpload(item);
 
   cell.addEventListener("mouseover", (event) => {
     if (!cell.contains(event.target)) {
       return;
     }
 
-    const hoveringFullTarget = Boolean(event.target.closest(".media-choice-half--full"));
-    const labelUrl = fullUrlAvailable && hoveringFullTarget ? uploadUrl : displayUrl;
-    const showFullOnPage = Boolean(fullUrlAvailable && hoveringFullTarget && fullOnPage);
-    const needsRemoteFull =
-      Boolean(fullUrlAvailable && hoveringFullTarget && !fullOnPage);
+    const labelUrl = hasDistinctUpload ? uploadUrl : displayUrl;
+    const showFullOnPage = Boolean(hasDistinctUpload && fullOnPage);
+    const needsRemoteFull = Boolean(hasDistinctUpload && !fullOnPage);
     const cachedRemote = needsRemoteFull
       ? galleryRemoteFullPreviewCache.get(uploadUrl)
       : null;
@@ -1433,7 +1438,7 @@ async function beginGallerySaveWithPermissions(
   }
 
   await clearMediaHostRetryState();
-  void startGallerySave(srcUrl, serverId, tabPayload);
+  void startGallerySave(srcUrl, serverId, tabPayloadForSrcUrl(tabPayload, srcUrl));
 }
 
 function resolveMediaHostRetryServer() {
@@ -1600,15 +1605,7 @@ function bindGallerySaveTrigger(element, srcUrl, anchorEl) {
   element.addEventListener("click", onSaveTrigger);
 }
 
-function getPopupChoiceFullLabel(mediaKind) {
-  if (mediaKind === "video") {
-    return browser.i18n.getMessage("popupChoiceVideo");
-  }
-
-  return browser.i18n.getMessage("popupChoiceFull");
-}
-
-function createUploadOverlay(cell, displayUrl) {
+function createUploadOverlay(cell, uploadUrl) {
   const overlay = document.createElement("div");
   overlay.className = "media-choice-overlay media-choice-overlay--single";
 
@@ -1618,36 +1615,9 @@ function createUploadOverlay(cell, displayUrl) {
   const uploadLabel = browser.i18n.getMessage("popupGalleryUpload");
   uploadButton.title = uploadLabel;
   uploadButton.textContent = uploadLabel;
-  bindGallerySaveTrigger(uploadButton, displayUrl, cell);
+  bindGallerySaveTrigger(uploadButton, uploadUrl, cell);
 
   overlay.appendChild(uploadButton);
-  return overlay;
-}
-
-function createSplitChoiceOverlay(cell, displayUrl, uploadUrl, mediaKind) {
-  const overlay = document.createElement("div");
-  overlay.className = "media-choice-overlay";
-  const fullLabel = getPopupChoiceFullLabel(mediaKind);
-
-  const thumbHalf = document.createElement("button");
-  thumbHalf.type = "button";
-  thumbHalf.className = "media-choice-half media-choice-half--thumb";
-  thumbHalf.title = browser.i18n.getMessage("popupChoiceThumbnail");
-  thumbHalf.textContent = browser.i18n.getMessage("popupChoiceThumbnail");
-  bindGallerySaveTrigger(thumbHalf, displayUrl, cell);
-
-  const divider = document.createElement("div");
-  divider.className = "media-choice-divider";
-  divider.setAttribute("aria-hidden", "true");
-
-  const fullHalf = document.createElement("button");
-  fullHalf.type = "button";
-  fullHalf.className = "media-choice-half media-choice-half--full";
-  fullHalf.title = fullLabel;
-  fullHalf.textContent = fullLabel;
-  bindGallerySaveTrigger(fullHalf, uploadUrl, cell);
-
-  overlay.append(thumbHalf, divider, fullHalf);
   return overlay;
 }
 
@@ -1682,25 +1652,6 @@ function renderPageMediaGallery(items) {
     cell.dataset.mediaKind = item.kind;
     cell.title = displayUrl;
 
-    if (item.fullUrlAvailable) {
-      cell.classList.add("media-cell--has-full");
-      cell.dataset.fullAvailable = "true";
-      cell.addEventListener("click", (event) => {
-        if (event.target.closest(".media-choice-half, .media-choice-single")) {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        const wasOpen = cell.classList.contains("media-cell--show-choice");
-        pageMediaHost.querySelectorAll(".media-cell--show-choice").forEach((other) => {
-          other.classList.remove("media-cell--show-choice");
-        });
-        if (!wasOpen) {
-          cell.classList.add("media-cell--show-choice");
-        }
-      });
-    }
-
     const thumbWrap = document.createElement("div");
     thumbWrap.className = "media-thumb-wrap";
 
@@ -1730,11 +1681,7 @@ function renderPageMediaGallery(items) {
       thumbWrap.appendChild(badge);
     }
 
-    if (item.fullUrlAvailable) {
-      thumbWrap.appendChild(createSplitChoiceOverlay(cell, displayUrl, uploadUrl, item.kind));
-    } else {
-      thumbWrap.appendChild(createUploadOverlay(cell, displayUrl));
-    }
+    thumbWrap.appendChild(createUploadOverlay(cell, uploadUrl));
 
     cell.appendChild(thumbWrap);
 

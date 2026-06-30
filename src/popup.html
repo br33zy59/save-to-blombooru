@@ -546,7 +546,9 @@
 
     @media (prefers-reduced-motion: reduce) {
 
-      .page-media-status--host-retry {
+      .page-media-status--host-retry,
+
+      .media-cell--host-retry {
 
         animation: none;
 
@@ -962,9 +964,37 @@
 
     .media-cell--host-retry {
 
-      outline: 2px solid LinkText;
+      outline: 2px solid light-dark(#c62828, #ff8a80);
 
       outline-offset: 2px;
+
+      animation: gallery-cell-host-retry-pulse 1.2s ease-in-out infinite;
+
+    }
+
+
+
+    @keyframes gallery-cell-host-retry-pulse {
+
+      0%,
+
+      100% {
+
+        outline-color: light-dark(#c62828, #ff8a80);
+
+        box-shadow: 0 0 0 0 transparent;
+
+      }
+
+
+
+      50% {
+
+        outline-color: light-dark(#e53935, #ff5252);
+
+        box-shadow: 0 0 0 4px light-dark(rgba(198, 40, 40, 0.35), rgba(255, 138, 128, 0.35));
+
+      }
 
     }
 

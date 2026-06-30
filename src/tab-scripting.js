@@ -31,6 +31,38 @@ function base64ToBlob(base64, mimeType = "application/octet-stream") {
   return new Blob([bytes], { type: mimeType });
 }
 
+function tabPayloadMatchesSrcUrl(tabPayload, srcUrl) {
+  if (!tabPayload?.base64 || !srcUrl) {
+    return false;
+  }
+
+  const probedUrl = tabPayload.probedUrl;
+  if (!probedUrl) {
+    return false;
+  }
+
+  if (probedUrl === srcUrl) {
+    return true;
+  }
+
+  try {
+    const a = new URL(probedUrl);
+    const b = new URL(srcUrl);
+
+    return (
+      a.hostname === b.hostname &&
+      a.pathname === b.pathname &&
+      a.search === b.search
+    );
+  } catch (err) {
+    return false;
+  }
+}
+
+function tabPayloadForSrcUrl(tabPayload, srcUrl) {
+  return tabPayloadMatchesSrcUrl(tabPayload, srcUrl) ? tabPayload : null;
+}
+
 async function probeTabMediaPayload(tabId, srcUrl) {
   const normalizedTabId = normalizeTabId(tabId);
 
@@ -45,7 +77,7 @@ async function probeTabMediaPayload(tabId, srcUrl) {
       return null;
     }
 
-    return payload;
+    return { ...payload, probedUrl: srcUrl };
   } catch (err) {
     return null;
   }

@@ -383,7 +383,7 @@ function needsMediaHostPermissionPrompt(srcUrl, pageUrl, tabPayload) {
     return false;
   }
 
-  if (tabPayload?.base64) {
+  if (tabPayloadMatchesSrcUrl(tabPayload, srcUrl)) {
     return false;
   }
 
