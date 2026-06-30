@@ -19,6 +19,9 @@ const gallerySortDetails = document.getElementById("gallerySortDetails");
 const gallerySortSummary = document.getElementById("gallerySortSummary");
 const gallerySortMenu = document.getElementById("gallerySortMenu");
 const galleryItemCount = document.getElementById("galleryItemCount");
+const transferHistory = document.getElementById("transferHistory");
+const transferHistoryList = document.getElementById("transferHistoryList");
+const transferHistoryEmpty = document.getElementById("transferHistoryEmpty");
 
 /** Reserved left column width (must match CSS .gallery-hover-preview-pane). */
 const GALLERY_PREVIEW_PANE_WIDTH = 360;
@@ -596,6 +599,169 @@ function scheduleGalleryRemoteFullPreviewUpgrade(context) {
   }, GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS);
 }
 
+function hostnameFromMediaUrl(url) {
+  if (!url) {
+    return "";
+  }
+
+  try {
+    const { hostname, protocol } = new URL(url);
+
+    if (!hostname || protocol === "data:" || protocol === "blob:") {
+      return "";
+    }
+
+    return hostname.startsWith("www.") ? hostname.slice(4) : hostname;
+  } catch (err) {
+    return "";
+  }
+}
+
+function formatTransferHistoryUrlLabel(url) {
+  if (!url) {
+    return "";
+  }
+
+  let name = "";
+
+  try {
+    const pathname = new URL(url).pathname;
+    name = decodeURIComponent(pathname.split("/").pop() || pathname);
+  } catch (err) {
+    const fallback = url.split("/").pop()?.split("?")[0];
+
+    if (fallback) {
+      try {
+        name = decodeURIComponent(fallback);
+      } catch (decodeErr) {
+        name = fallback;
+      }
+    } else {
+      name = url;
+    }
+  }
+
+  if (!name) {
+    name = url;
+  }
+
+  const host = hostnameFromMediaUrl(url);
+  const suffix = host ? ` (${host})` : "";
+  const maxNameLen = host ? Math.max(12, 48 - suffix.length) : 48;
+
+  if (name.length > maxNameLen) {
+    name = `${name.slice(0, Math.max(0, maxNameLen - 1))}…`;
+  }
+
+  return host ? `${name}${suffix}` : name;
+}
+
+function transferHistoryStatusMeta(status) {
+  if (status === TRANSFER_STATUS_PENDING) {
+    return {
+      className: "transfer-history__status--pending",
+      icon: "↻",
+      labelKey: "popupTransferStatusPending"
+    };
+  }
+
+  if (status === TRANSFER_STATUS_SUCCESS) {
+    return {
+      className: "transfer-history__status--success",
+      icon: "✓",
+      labelKey: "popupTransferStatusSuccess"
+    };
+  }
+
+  return {
+    className: "transfer-history__status--failure",
+    icon: "✗",
+    labelKey: "popupTransferStatusFailure"
+  };
+}
+
+function renderTransferHistory(entries) {
+  const list = entries || [];
+
+  if (list.length === 0) {
+    transferHistoryList.hidden = true;
+    transferHistoryList.replaceChildren();
+    transferHistoryEmpty.hidden = false;
+    updateTransferHistoryVisibility();
+    return;
+  }
+
+  transferHistoryEmpty.hidden = true;
+  transferHistoryList.hidden = false;
+  transferHistoryList.replaceChildren();
+
+  for (const entry of list.slice(0, TRANSFER_HISTORY_MAX_ENTRIES)) {
+    const item = document.createElement("li");
+    item.className = "transfer-history__item";
+
+    const thumb = document.createElement("img");
+    thumb.className = "transfer-history__thumb";
+    thumb.alt = "";
+    thumb.loading = "lazy";
+    thumb.decoding = "async";
+    thumb.src = entry.thumbUrl || entry.srcUrl;
+    thumb.addEventListener("error", () => {
+      thumb.classList.add("transfer-history__thumb--broken");
+      thumb.removeAttribute("src");
+    });
+
+    const label = formatTransferHistoryUrlLabel(entry.srcUrl);
+    const url = document.createElement("span");
+    url.className = "transfer-history__url";
+
+    if (entry.status === TRANSFER_STATUS_SUCCESS && entry.mediaPageUrl) {
+      const link = document.createElement("a");
+      link.href = entry.mediaPageUrl;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = label;
+      link.title = entry.mediaPageUrl;
+      url.appendChild(link);
+    } else {
+      url.textContent = label;
+      url.title = entry.srcUrl;
+    }
+
+    const statusMeta = transferHistoryStatusMeta(entry.status);
+    const status = document.createElement("span");
+    status.className = `transfer-history__status ${statusMeta.className}`;
+    status.textContent = statusMeta.icon;
+    status.setAttribute("aria-label", browser.i18n.getMessage(statusMeta.labelKey));
+
+    if (entry.status === TRANSFER_STATUS_FAILURE && entry.errorMessage) {
+      status.title = entry.errorMessage;
+    }
+
+    item.append(thumb, url, status);
+    transferHistoryList.appendChild(item);
+  }
+
+  updateTransferHistoryVisibility();
+}
+
+function updateTransferHistoryVisibility() {
+  const previewVisible = galleryHoverPreview.classList.contains(
+    "gallery-hover-preview--visible"
+  );
+
+  transferHistory.hidden = previewVisible;
+}
+
+async function loadTransferHistory() {
+  renderTransferHistory(await readTransferHistory());
+}
+
+function thumbUrlForGallerySave(uploadUrl) {
+  const cell = findGalleryCellForSrcUrl(uploadUrl);
+
+  return cell?.dataset.displayUrl || uploadUrl;
+}
+
 function hideGalleryHoverPreview() {
   clearGalleryRemoteFullPreviewTimer();
   galleryHoverPreviewContext = null;
@@ -603,7 +769,7 @@ function hideGalleryHoverPreview() {
   galleryHoverPreview.classList.remove("gallery-hover-preview--visible");
   galleryHoverPreview.hidden = true;
   galleryHoverPreview.setAttribute("aria-hidden", "true");
-  galleryHoverPreviewPane.setAttribute("aria-hidden", "true");
+  galleryHoverPreviewPane.classList.add("gallery-hover-preview-pane--history");
   galleryHoverPreviewFrame.style.width = "";
   galleryHoverPreviewFrame.style.height = "";
   galleryHoverPreviewFrame.style.minHeight = "";
@@ -619,6 +785,7 @@ function hideGalleryHoverPreview() {
   galleryHoverPreviewFilename.textContent = "";
   galleryHoverPreviewDimensions.hidden = true;
   galleryHoverPreviewDimensions.textContent = "";
+  updateTransferHistoryVisibility();
 }
 
 function isDirectVideoPreviewUrl(url) {
@@ -772,8 +939,9 @@ function showGalleryHoverPreview(
 
   galleryHoverPreview.hidden = false;
   galleryHoverPreview.setAttribute("aria-hidden", "false");
-  galleryHoverPreviewPane.setAttribute("aria-hidden", "false");
+  galleryHoverPreviewPane.classList.remove("gallery-hover-preview-pane--history");
   galleryHoverPreview.classList.add("gallery-hover-preview--visible");
+  transferHistory.hidden = true;
 
   const layout = () => {
     layoutGalleryHoverPreview(
@@ -1369,6 +1537,7 @@ async function startGallerySave(srcUrl, serverId, tabPayload = null) {
         tabId: gallerySourceTabId,
         pageUrl: galleryPageUrl,
         srcUrl,
+        thumbUrl: thumbUrlForGallerySave(srcUrl),
         serverId,
         tabPayload,
         booruPermissionsPreGranted: true,
@@ -1828,6 +1997,11 @@ document.addEventListener("keydown", (event) => {
 });
 
 browser.storage.onChanged.addListener((changes, area) => {
+  if (area === "session" && changes.transferHistory) {
+    renderTransferHistory(changes.transferHistory.newValue || []);
+    return;
+  }
+
   if (
     area === "session" &&
     (changes.pendingUploadAuth || changes.pendingMediaHostSave)
@@ -1870,11 +2044,11 @@ localizePage();
 void loadGalleryViewPrefs()
   .then(() => {
     syncGalleryControlsFromState();
-    return refreshPopup();
+    return Promise.all([loadTransferHistory(), refreshPopup()]);
   })
   .catch((err) => {
     console.warn("Popup init failed:", err);
-    void refreshPopup();
+    void Promise.all([loadTransferHistory(), refreshPopup()]);
   });
 
 window.addEventListener("pagehide", () => {

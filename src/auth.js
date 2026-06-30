@@ -99,6 +99,11 @@ function getMediaItemUrl(booruUrl, mediaId) {
   return `${base}/api/media/${mediaId}`;
 }
 
+function getMediaPageUrl(booruUrl, mediaId) {
+  const base = booruUrl.replace(/\/$/, "");
+  return `${base}/media/${mediaId}`;
+}
+
 function getInstanceInfoUrl(booruUrl) {
   const base = booruUrl.replace(/\/$/, "");
   return `${base}/api/instance-info`;

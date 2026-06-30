@@ -28,6 +28,7 @@ const SHARED_FILES = [
   "tab-scripting.js",
   "background.js",
   "auth.js",
+  "transfer-history.js",
   "servers.js",
   "media-context.js",
   "options.js",

@@ -180,6 +180,244 @@
 
 
 
+    .gallery-hover-preview-pane--history {
+
+      align-items: stretch;
+
+      justify-content: flex-start;
+
+    }
+
+
+
+    .transfer-history {
+
+      display: flex;
+
+      flex-direction: column;
+
+      width: 100%;
+
+      min-height: 0;
+
+      overflow: hidden;
+
+    }
+
+
+
+    .transfer-history[hidden] {
+
+      display: none !important;
+
+    }
+
+
+
+    .transfer-history__title {
+
+      margin: 0 0 6px;
+
+      font-size: 11px;
+
+      font-weight: 600;
+
+      color: GrayText;
+
+      text-transform: uppercase;
+
+      letter-spacing: 0.04em;
+
+    }
+
+
+
+    .transfer-history__list {
+
+      list-style: none;
+
+      margin: 0;
+
+      padding: 0;
+
+      overflow: hidden;
+
+    }
+
+
+
+    .transfer-history__item {
+
+      display: flex;
+
+      align-items: center;
+
+      gap: 6px;
+
+      height: 32px;
+
+      padding: 2px 0;
+
+      border-bottom: 1px solid color-mix(in srgb, CanvasText 8%, transparent);
+
+    }
+
+
+
+    .transfer-history__item:last-child {
+
+      border-bottom: none;
+
+    }
+
+
+
+    .transfer-history__thumb {
+
+      width: 24px;
+
+      height: 24px;
+
+      object-fit: cover;
+
+      border-radius: 3px;
+
+      flex: 0 0 auto;
+
+      background: color-mix(in srgb, CanvasText 6%, Canvas);
+
+    }
+
+
+
+    .transfer-history__thumb--broken {
+
+      opacity: 0.35;
+
+    }
+
+
+
+    .transfer-history__url {
+
+      flex: 1 1 auto;
+
+      min-width: 0;
+
+      font-size: 11px;
+
+      overflow: hidden;
+
+      text-overflow: ellipsis;
+
+      white-space: nowrap;
+
+      color: CanvasText;
+
+    }
+
+
+
+    .transfer-history__url a {
+
+      color: LinkText;
+
+      text-decoration: none;
+
+    }
+
+
+
+    .transfer-history__url a:hover {
+
+      text-decoration: underline;
+
+    }
+
+
+
+    .transfer-history__status {
+
+      flex: 0 0 auto;
+
+      width: 18px;
+
+      text-align: center;
+
+      font-size: 12px;
+
+      line-height: 1;
+
+    }
+
+
+
+    .transfer-history__status--pending {
+
+      display: inline-block;
+
+      animation: transfer-history-spin 0.9s linear infinite;
+
+    }
+
+
+
+    @keyframes transfer-history-spin {
+
+      to {
+
+        transform: rotate(360deg);
+
+      }
+
+    }
+
+
+
+    .transfer-history__status--success {
+
+      color: light-dark(#2e7d32, #81c784);
+
+    }
+
+
+
+    .transfer-history__status--failure {
+
+      color: light-dark(#c62828, #ff8a80);
+
+    }
+
+
+
+    .transfer-history__empty {
+
+      margin: 0;
+
+      font-size: 11px;
+
+      color: GrayText;
+
+      text-align: center;
+
+      padding: 16px 4px;
+
+    }
+
+
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .transfer-history__status--pending {
+
+        animation: none;
+
+      }
+
+    }
+
+
+
     .gallery-hover-preview {
 
       display: none;
@@ -1412,13 +1650,26 @@
 
         id="galleryHoverPreviewPane"
 
-        class="gallery-hover-preview-pane"
+        class="gallery-hover-preview-pane gallery-hover-preview-pane--history"
 
         aria-label="Image preview"
 
-        aria-hidden="true"
-
       >
+        <div id="transferHistory" class="transfer-history">
+          <h3
+            id="transferHistoryHeading"
+            class="transfer-history__title"
+            data-i18n="popupTransferHistoryHeading"
+          ></h3>
+          <ul id="transferHistoryList" class="transfer-history__list" hidden></ul>
+          <p
+            id="transferHistoryEmpty"
+            class="transfer-history__empty"
+            data-i18n="popupTransferHistoryEmpty"
+            hidden
+          ></p>
+        </div>
+
         <div id="galleryHoverPreview" class="gallery-hover-preview" hidden aria-hidden="true">
           <div id="galleryHoverPreviewFrame" class="gallery-hover-preview__frame">
             <img id="galleryHoverPreviewImg" class="gallery-hover-preview__img" alt="" decoding="async">
@@ -1492,6 +1743,8 @@
   <script src="i18n-ui.js"></script>
 
   <script src="tab-scripting.js"></script>
+
+  <script src="transfer-history.js"></script>
 
   <script src="media-context.js"></script>
 

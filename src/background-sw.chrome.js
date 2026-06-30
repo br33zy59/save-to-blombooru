@@ -7,5 +7,6 @@ importScripts(
   "media-context.js",
   "servers.js",
   "auth.js",
+  "transfer-history.js",
   "background.js"
 );

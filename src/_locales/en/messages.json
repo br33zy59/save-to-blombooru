@@ -56,6 +56,21 @@
   "popupGalleryUploadFailed": {
     "message": "✗ Failed"
   },
+  "popupTransferHistoryHeading": {
+    "message": "Recent uploads"
+  },
+  "popupTransferHistoryEmpty": {
+    "message": "No uploads yet."
+  },
+  "popupTransferStatusPending": {
+    "message": "Uploading"
+  },
+  "popupTransferStatusSuccess": {
+    "message": "Uploaded"
+  },
+  "popupTransferStatusFailure": {
+    "message": "Upload failed"
+  },
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Resolution unknown"
   },
