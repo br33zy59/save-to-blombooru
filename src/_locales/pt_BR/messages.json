@@ -56,6 +56,21 @@
   "popupGalleryUploadFailed": {
     "message": "✗ Falhou"
   },
+  "popupTransferHistoryHeading": {
+    "message": "Envios recentes"
+  },
+  "popupTransferHistoryEmpty": {
+    "message": "Nenhum envio ainda."
+  },
+  "popupTransferStatusPending": {
+    "message": "Enviando"
+  },
+  "popupTransferStatusSuccess": {
+    "message": "Enviado"
+  },
+  "popupTransferStatusFailure": {
+    "message": "Falha no envio"
+  },
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Resolução desconhecida"
   },

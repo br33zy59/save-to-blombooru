@@ -56,6 +56,21 @@
   "popupGalleryUploadFailed": {
     "message": "✗ Error"
   },
+  "popupTransferHistoryHeading": {
+    "message": "Subidas recientes"
+  },
+  "popupTransferHistoryEmpty": {
+    "message": "Aún no hay subidas."
+  },
+  "popupTransferStatusPending": {
+    "message": "Subiendo"
+  },
+  "popupTransferStatusSuccess": {
+    "message": "Subido"
+  },
+  "popupTransferStatusFailure": {
+    "message": "Error al subir"
+  },
   "popupGalleryPreviewDimensionsUnknown": {
     "message": "Resolución desconocida"
   },

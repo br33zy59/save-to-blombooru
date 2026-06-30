@@ -368,6 +368,7 @@ async function saveMediaToBlombooru({
   tabId,
   pageUrl,
   srcUrl,
+  thumbUrl = null,
   serverId,
   tabPayload = null,
   booruPermissionsPreGranted = false,
@@ -384,6 +385,12 @@ async function saveMediaToBlombooru({
     throw new Error(browser.i18n.getMessage("popupGalleryServerOnPage"));
   }
 
+  const transferId = await beginTransferEntry({
+    srcUrl,
+    thumbUrl: thumbUrl || srcUrl,
+    serverId
+  });
+
   const normalizedTabId = normalizeTabId(tabId);
   const requestBooruPermission =
     !booruPermissionsPreGranted && !hasInstallTimeBroadHostAccess();
@@ -396,6 +403,11 @@ async function saveMediaToBlombooru({
   );
 
   if (!hasBooruAccess) {
+    await finishTransferEntry(
+      transferId,
+      TRANSFER_STATUS_FAILURE,
+      browser.i18n.getMessage("errorUploadHostPermission")
+    );
     notifyBooruHostPermissionDenied();
     throw new Error(browser.i18n.getMessage("errorUploadHostPermission"));
   }
@@ -418,17 +430,26 @@ async function saveMediaToBlombooru({
         ? browser.i18n.getMessage("errorUnsupportedUploadFormat")
         : err.message;
 
+    await finishTransferEntry(transferId, TRANSFER_STATUS_FAILURE, message);
     notifyUploadFailed(message);
     throw new Error(message);
   }
 
-  await performUpload({
-    mediaBlob: preparedUpload.mediaBlob,
-    filename: preparedUpload.filename,
-    source: uploadSourceForSave(pageUrl, srcUrl),
-    description,
-    serverId: server.id
-  });
+  try {
+    const uploadResult = await performUpload({
+      mediaBlob: preparedUpload.mediaBlob,
+      filename: preparedUpload.filename,
+      source: uploadSourceForSave(pageUrl, srcUrl),
+      description,
+      serverId: server.id
+    });
+    await finishTransferEntry(transferId, TRANSFER_STATUS_SUCCESS, "", {
+      mediaPageUrl: uploadResult?.mediaPageUrl || ""
+    });
+  } catch (err) {
+    await finishTransferEntry(transferId, TRANSFER_STATUS_FAILURE, err.message);
+    throw err;
+  }
 }
 
 const contextMenuMediaCache = new Map();
@@ -524,6 +545,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     useCache: false
   });
   const srcUrl = resolution.uploadUrl || info.srcUrl;
+  const thumbUrl = resolution.displayUrl || info.srcUrl;
 
   const tabPayload =
     tabId >= 0 ? await probeTabMediaPayload(tabId, srcUrl) : null;
@@ -535,6 +557,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         tabId,
         pageUrl,
         srcUrl,
+        thumbUrl,
         serverId,
         tabPayload: matchingTabPayload
       });
@@ -546,6 +569,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     tabId,
     pageUrl,
     srcUrl,
+    thumbUrl,
     serverId,
     tabPayload: matchingTabPayload,
     booruPermissionsPreGranted: true,
@@ -789,14 +813,14 @@ async function performUpload(data) {
       throw new Error(uploadErrorMessage(uploadResponse.status, bodyText));
     }
 
-    if (data.description) {
-      let uploaded;
-      try {
-        uploaded = await uploadResponse.json();
-      } catch (e) {
-        throw new Error(browser.i18n.getMessage("errorInvalidJson"));
-      }
+    let uploaded;
+    try {
+      uploaded = await uploadResponse.json();
+    } catch (e) {
+      throw new Error(browser.i18n.getMessage("errorInvalidJson"));
+    }
 
+    if (data.description) {
       if (uploaded?.id == null) {
         console.warn("Upload succeeded but response had no media id; description not saved.");
       } else {
@@ -822,6 +846,12 @@ async function performUpload(data) {
     }
 
     finishUpload("success");
+
+    return {
+      mediaId: uploaded?.id ?? null,
+      mediaPageUrl:
+        uploaded?.id != null ? getMediaPageUrl(booruUrl, uploaded.id) : ""
+    };
   } catch (err) {
     console.error(err);
     finishUpload("failure");
