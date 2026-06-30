@@ -616,7 +616,6 @@ function hostnameFromMediaUrl(url) {
     return "";
   }
 }
-
 function formatTransferHistoryUrlLabel(url) {
   if (!url) {
     return "";
