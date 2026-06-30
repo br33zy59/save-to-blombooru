@@ -168,6 +168,18 @@
   "labelApiKey": {
     "message": "Clave API:"
   },
+  "placeholderApiKey": {
+    "message": "blom_…"
+  },
+  "hintApiKeyBefore": {
+    "message": "Cree una clave API en el "
+  },
+  "hintApiKeyAdminLink": {
+    "message": "área de administración"
+  },
+  "hintApiKeyAfter": {
+    "message": " con permiso de subida."
+  },
   "hintUploadAuthBefore": {
     "message": "Si tienes problemas al subir, inicia sesión en el "
   },
@@ -227,6 +239,15 @@
   },
   "statusConnectionSuccess": {
     "message": "¡Conexión correcta!"
+  },
+  "statusBlombooruVersion": {
+    "message": "Blombooru $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.40.1"
+      }
+    }
   },
   "statusSettingsSaved": {
     "message": "Configuración guardada."
@@ -333,6 +354,9 @@
   "errorUploadAuthRequired": {
     "message": "Error al subir: se requiere autenticación. Inicie sesión en la página de administración de Blombooru e inténtelo de nuevo."
   },
+  "errorApiKeyRequired": {
+    "message": "Se requiere autenticación. Introduzca su clave API arriba."
+  },
   "errorUploadHostPermission": {
     "message": "Subida cancelada: permita el acceso a su servidor Blombooru cuando se le solicite."
   },
@@ -372,8 +396,14 @@
   "popupUploadAuthFailedAfter": {
     "message": " de su Blombooru e iniciar sesión para obtener las cookies necesarias"
   },
+  "popupUploadApiKeyRequired": {
+    "message": "Error al subir: añada una clave API en la configuración de la extensión e inténtelo de nuevo."
+  },
   "notifyUploadAuthAdminLogin": {
     "message": "Error al subir: inicie sesión en la página de administración de Blombooru en el navegador e intente subir de nuevo."
+  },
+  "notifyUploadApiKeyRequired": {
+    "message": "Error al subir: añada una clave API en la configuración de la extensión e intente subir de nuevo."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Error al subir: método no permitido. Compruebe la URL base de Blombooru."

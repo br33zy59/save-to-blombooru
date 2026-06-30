@@ -1153,8 +1153,13 @@ function showMediaHostRetryStatus(host) {
   });
 }
 
-function showUploadAuthRequiredStatus(booruUrl) {
+function showUploadAuthRequiredStatus(booruUrl, authMode = "admin") {
   showPopupRetryBanner("uploadAuth", (el) => {
+    if (authMode === "apiKey") {
+      el.textContent = browser.i18n.getMessage("popupUploadApiKeyRequired");
+      return;
+    }
+
     renderAdminLoginMessage(el, booruUrl, {
       beforeKey: "popupUploadAuthFailedBefore",
       linkKey: "popupUploadAuthAdminLink",
@@ -1454,7 +1459,7 @@ async function applyPendingUploadAuthUi() {
     return false;
   }
 
-  showUploadAuthRequiredStatus(pending.booruUrl);
+  showUploadAuthRequiredStatus(pending.booruUrl, pending.authMode || "admin");
   schedulePopupRetryBannerAutoDismiss(pending);
   return true;
 }

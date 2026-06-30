@@ -105,8 +105,19 @@
       margin-bottom: 0;
     }
 
-    .field .api-key {
+    .api-key-field--hidden {
       display: none !important;
+    }
+
+    .legacy-upload-auth-hint--hidden {
+      display: none !important;
+    }
+
+    .instance-version {
+      margin: 0.35em 0 0;
+      min-height: 1.2em;
+      font-size: 0.95em;
+      color: GrayText;
     }
 
     .upload-auth-hint {
@@ -275,9 +286,10 @@
       </div>
 
       <div class="server-row">
-        <div class="field">
-          <input type="password" class="api-key" autocomplete="off" tabindex="-1" aria-hidden="true">
-          <p class="upload-auth-hint" aria-live="polite"></p>
+        <div class="field api-key-field api-key-field--hidden">
+          <label data-i18n="labelApiKey"></label>
+          <input type="password" class="api-key" data-i18n-placeholder="placeholderApiKey" autocomplete="off">
+          <p class="api-key-hint upload-auth-hint" aria-live="polite"></p>
         </div>
         <div class="field">
           <label data-i18n="labelDefaultRating"></label>
@@ -292,7 +304,10 @@
         </div>
       </div>
 
+      <p class="legacy-upload-auth-hint upload-auth-hint" aria-live="polite"></p>
+
       <div class="server-status-block">
+        <p class="instance-version" hidden aria-live="polite"></p>
         <p class="url-status field-status" aria-live="polite"></p>
         <button type="button" class="grant-access" data-i18n="buttonGrantAccess" hidden></button>
       </div>

@@ -168,6 +168,18 @@
   "labelApiKey": {
     "message": "Clé API :"
   },
+  "placeholderApiKey": {
+    "message": "blom_…"
+  },
+  "hintApiKeyBefore": {
+    "message": "Créez une clé API dans la "
+  },
+  "hintApiKeyAdminLink": {
+    "message": "zone d'administration"
+  },
+  "hintApiKeyAfter": {
+    "message": " avec la permission d'envoi."
+  },
   "hintUploadAuthBefore": {
     "message": "En cas de problème d'envoi, connectez-vous à la "
   },
@@ -227,6 +239,15 @@
   },
   "statusConnectionSuccess": {
     "message": "Connexion réussie !"
+  },
+  "statusBlombooruVersion": {
+    "message": "Blombooru $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.40.1"
+      }
+    }
   },
   "statusSettingsSaved": {
     "message": "Paramètres enregistrés."
@@ -333,6 +354,9 @@
   "errorUploadAuthRequired": {
     "message": "Échec de l'envoi : authentification requise. Connectez-vous à la page d'administration Blombooru et réessayez."
   },
+  "errorApiKeyRequired": {
+    "message": "Authentification requise. Saisissez votre clé API ci-dessus."
+  },
   "errorUploadHostPermission": {
     "message": "Envoi annulé : autorisez l'accès à votre serveur Blombooru lorsque le navigateur le demande."
   },
@@ -372,8 +396,14 @@
   "popupUploadAuthFailedAfter": {
     "message": " de votre Blombooru et connectez-vous pour obtenir les cookies nécessaires"
   },
+  "popupUploadApiKeyRequired": {
+    "message": "Échec de l'envoi : ajoutez une clé API dans les paramètres de l'extension, puis réessayez."
+  },
   "notifyUploadAuthAdminLogin": {
     "message": "Échec de l'envoi : connectez-vous à la page d'administration Blombooru dans le navigateur, puis réessayez l'envoi."
+  },
+  "notifyUploadApiKeyRequired": {
+    "message": "Échec de l'envoi : ajoutez une clé API dans les paramètres de l'extension, puis réessayez l'envoi."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Échec de l'envoi : méthode non autorisée. Vérifiez l'URL de base Blombooru."

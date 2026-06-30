@@ -1,5 +1,7 @@
 // Blombooru v1.40.0+ accepts scoped API keys (blom_…) via api_key on /api/media routes.
 const MIN_BLOOMBOORU_VERSION_FOR_API_KEY_UPLOAD = "1.40.0";
+// /api/instance-info is available from v1.40.1 (hotfix after 1.40.0 added the endpoint).
+const MIN_BLOOMBOORU_VERSION_FOR_INSTANCE_INFO = "1.40.1";
 
 function normalizeApiKey(apiKey) {
   const key = (apiKey || "").trim();
@@ -109,6 +111,29 @@ function getInstanceInfoUrl(booruUrl) {
   return `${base}/api/instance-info`;
 }
 
+function supportsInstanceInfoProbe(instanceInfo) {
+  if (!instanceInfo?.app_version) {
+    return false;
+  }
+
+  return isSemverAtLeast(
+    instanceInfo.app_version,
+    MIN_BLOOMBOORU_VERSION_FOR_INSTANCE_INFO
+  ) === true;
+}
+
+function usesApiKeyUploadAuth(instanceInfo) {
+  return supportsInstanceInfoProbe(instanceInfo) && Boolean(instanceInfo.auth_required);
+}
+
+function usesLegacyUploadAuth(instanceInfo) {
+  if (!instanceInfo?.app_version) {
+    return true;
+  }
+
+  return !supportsInstanceInfoProbe(instanceInfo);
+}
+
 async function fetchInstanceInfo(booruUrl) {
   try {
     const response = await fetch(getInstanceInfoUrl(booruUrl));
@@ -183,6 +208,12 @@ async function testBlombooruConnection(booruUrl, apiKey) {
   }
 
   if (response.status === 401 || response.status === 403) {
+    const instanceInfo = await fetchInstanceInfo(booruUrl);
+
+    if (usesApiKeyUploadAuth(instanceInfo) && !normalizeApiKey(apiKey)) {
+      throw new Error(browser.i18n.getMessage("errorApiKeyRequired"));
+    }
+
     throw new Error(browser.i18n.getMessage("errorAuthFailed"));
   }
 

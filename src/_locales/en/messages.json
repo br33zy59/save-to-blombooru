@@ -168,6 +168,18 @@
   "labelApiKey": {
     "message": "API Key:"
   },
+  "placeholderApiKey": {
+    "message": "blom_…"
+  },
+  "hintApiKeyBefore": {
+    "message": "Create an API key in the "
+  },
+  "hintApiKeyAdminLink": {
+    "message": "admin area"
+  },
+  "hintApiKeyAfter": {
+    "message": " with upload permission."
+  },
   "hintUploadAuthBefore": {
     "message": "If you have problems uploading, log into the "
   },
@@ -227,6 +239,15 @@
   },
   "statusConnectionSuccess": {
     "message": "Connection successful!"
+  },
+  "statusBlombooruVersion": {
+    "message": "Blombooru $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.40.1"
+      }
+    }
   },
   "statusSettingsSaved": {
     "message": "Settings saved."
@@ -333,6 +354,9 @@
   "errorUploadAuthRequired": {
     "message": "Upload failed: authentication required. Log into your Blombooru admin page and try again."
   },
+  "errorApiKeyRequired": {
+    "message": "Authentication required. Enter your API key above."
+  },
   "errorUploadHostPermission": {
     "message": "Upload cancelled: allow access to your Blombooru server when prompted."
   },
@@ -372,8 +396,14 @@
   "popupUploadAuthFailedAfter": {
     "message": " and log in to obtain the necessary cookies"
   },
+  "popupUploadApiKeyRequired": {
+    "message": "Upload failed: add an API key in extension settings, then try again."
+  },
   "notifyUploadAuthAdminLogin": {
     "message": "Upload failed: log into your Blombooru admin page in the browser, then try uploading again."
+  },
+  "notifyUploadApiKeyRequired": {
+    "message": "Upload failed: add an API key in extension settings, then try uploading again."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload failed: method not allowed. Check your Blombooru base URL."

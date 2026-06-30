@@ -316,14 +316,23 @@ function notifySaveNeedsMediaHostPermissionPopupRetry(srcUrl) {
 }
 
 function isUploadAuthError(err) {
+  if (!(err instanceof Error)) {
+    return false;
+  }
+
+  const msg = err.message;
   return (
-    err instanceof Error &&
-    err.message === browser.i18n.getMessage("errorUploadAuthRequired")
+    msg === browser.i18n.getMessage("errorUploadAuthRequired") ||
+    msg === browser.i18n.getMessage("errorApiKeyRequired")
   );
 }
 
 function notifyUploadAuthAdminLoginRequired() {
   notifyUploadFailed(browser.i18n.getMessage("notifyUploadAuthAdminLogin"));
+}
+
+function notifyUploadApiKeyRequired() {
+  notifyUploadFailed(browser.i18n.getMessage("notifyUploadApiKeyRequired"));
 }
 
 async function deferPopupRetry(persist, notify) {
@@ -337,10 +346,12 @@ async function deferPopupRetry(persist, notify) {
   }
 }
 
-async function deferUploadAuthPopupRetry({ serverId, booruUrl }) {
+async function deferUploadAuthPopupRetry({ serverId, booruUrl, authMode = "admin" }) {
   await deferPopupRetry(
-    () => persistPendingUploadAuth({ serverId, booruUrl }),
-    notifyUploadAuthAdminLoginRequired
+    () => persistPendingUploadAuth({ serverId, booruUrl, authMode }),
+    authMode === "apiKey"
+      ? notifyUploadApiKeyRequired
+      : notifyUploadAuthAdminLoginRequired
   );
 }
 
@@ -810,6 +821,15 @@ async function performUpload(data) {
 
     if (!uploadResponse.ok) {
       const bodyText = await uploadResponse.text();
+
+      if (uploadResponse.status === 401) {
+        const instanceInfo = await fetchInstanceInfo(booruUrl);
+
+        if (usesApiKeyUploadAuth(instanceInfo)) {
+          throw new Error(browser.i18n.getMessage("errorApiKeyRequired"));
+        }
+      }
+
       throw new Error(uploadErrorMessage(uploadResponse.status, bodyText));
     }
 
@@ -861,9 +881,13 @@ async function performUpload(data) {
       const server = findServerById(servers, data.serverId);
 
       if (server?.booruUrl) {
+        const instanceInfo = await fetchInstanceInfo(server.booruUrl);
+        const authMode = usesApiKeyUploadAuth(instanceInfo) ? "apiKey" : "admin";
+
         await deferUploadAuthPopupRetry({
           serverId: data.serverId,
-          booruUrl: server.booruUrl
+          booruUrl: server.booruUrl,
+          authMode
         });
         throw err;
       }

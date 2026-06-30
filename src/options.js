@@ -8,6 +8,14 @@ function renderUploadAuthHint(hintEl, booruUrlInput) {
   });
 }
 
+function renderApiKeyHint(hintEl, booruUrlInput) {
+  renderAdminLoginMessage(hintEl, booruUrlInput.value, {
+    beforeKey: "hintApiKeyBefore",
+    linkKey: "hintApiKeyAdminLink",
+    afterKey: "hintApiKeyAfter"
+  });
+}
+
 const saveButton = document.getElementById("save");
 const saveButtonWrap = document.getElementById("saveButtonWrap");
 const saveInvalidTooltip = browser.i18n.getMessage("tooltipSaveInvalid");
@@ -96,6 +104,46 @@ function createServerManager(serverId, elements, onStateChange) {
     return normalized;
   }
 
+  function applyInstanceProbeUi(instanceInfo) {
+    const apiKeyAuth = usesApiKeyUploadAuth(instanceInfo);
+    const legacyAuth = usesLegacyUploadAuth(instanceInfo);
+
+    elements.apiKeyFieldEl.classList.toggle("api-key-field--hidden", !apiKeyAuth);
+    elements.legacyUploadAuthHintEl.classList.toggle(
+      "legacy-upload-auth-hint--hidden",
+      !legacyAuth
+    );
+
+    if (apiKeyAuth) {
+      renderApiKeyHint(elements.apiKeyHintEl, elements.booruUrlInput);
+    } else if (legacyAuth) {
+      renderUploadAuthHint(elements.legacyUploadAuthHintEl, elements.booruUrlInput);
+    } else {
+      elements.legacyUploadAuthHintEl.replaceChildren();
+      elements.apiKeyHintEl.replaceChildren();
+    }
+
+    if (instanceInfo?.app_version) {
+      elements.instanceVersionEl.hidden = false;
+      elements.instanceVersionEl.textContent = browser.i18n.getMessage(
+        "statusBlombooruVersion",
+        instanceInfo.app_version
+      );
+    } else {
+      elements.instanceVersionEl.hidden = true;
+      elements.instanceVersionEl.textContent = "";
+    }
+  }
+
+  function resetInstanceProbeUi() {
+    elements.apiKeyFieldEl.classList.add("api-key-field--hidden");
+    elements.legacyUploadAuthHintEl.classList.remove("legacy-upload-auth-hint--hidden");
+    elements.apiKeyHintEl.replaceChildren();
+    elements.instanceVersionEl.hidden = true;
+    elements.instanceVersionEl.textContent = "";
+    renderUploadAuthHint(elements.legacyUploadAuthHintEl, elements.booruUrlInput);
+  }
+
   function applyInstanceAppName(booruUrl, instanceInfo) {
     if (booruUrl === nameFilledForUrl) {
       return;
@@ -162,7 +210,12 @@ function createServerManager(serverId, elements, onStateChange) {
       showUrlStatus(browser.i18n.getMessage("statusTestingConnection"), "info");
 
       const apiKey = elements.apiKeyInput.value;
-      let instanceInfo;
+      let instanceInfo = await fetchInstanceInfo(booruUrl);
+
+      if (requestId !== validationRequestId) return;
+
+      applyInstanceProbeUi(instanceInfo);
+      applyInstanceAppName(booruUrl, instanceInfo);
 
       try {
         instanceInfo = await testBlombooruConnection(booruUrl, apiKey);
@@ -176,6 +229,7 @@ function createServerManager(serverId, elements, onStateChange) {
       if (requestId !== validationRequestId) return;
 
       applyInstanceAppName(booruUrl, instanceInfo);
+      applyInstanceProbeUi(instanceInfo);
       connectionValid = true;
       showUrlStatus(browser.i18n.getMessage("statusConnectionSuccess"), "success");
     } finally {
@@ -189,7 +243,7 @@ function createServerManager(serverId, elements, onStateChange) {
     connectionValid = false;
     setGrantAccessVisible(false);
     showUrlStatus("", "");
-    renderUploadAuthHint(elements.uploadAuthHintEl, elements.booruUrlInput);
+    resetInstanceProbeUi();
     onStateChange();
   }
 
@@ -247,7 +301,6 @@ function createServerManager(serverId, elements, onStateChange) {
 
     elements.booruUrlInput.addEventListener("input", onUrlInput);
     elements.booruUrlInput.addEventListener("blur", () => {
-      renderUploadAuthHint(elements.uploadAuthHintEl, elements.booruUrlInput);
       validateConnection(false);
     });
 
@@ -275,7 +328,7 @@ function createServerManager(serverId, elements, onStateChange) {
     elements.apiKeyInput.value = entry.apiKey || "";
     elements.ratingInput.value = entry.rating || "safe";
     nameFilledForUrl = booruUrl && entry.serverName ? booruUrl : "";
-    renderUploadAuthHint(elements.uploadAuthHintEl, elements.booruUrlInput);
+    resetInstanceProbeUi();
   }
 
   return {
@@ -324,8 +377,11 @@ function addServerCard(entry) {
     grantAccessButton: card.querySelector(".grant-access"),
     statusBlockEl: card.querySelector(".server-status-block"),
     urlStatusEl: card.querySelector(".url-status"),
+    apiKeyFieldEl: card.querySelector(".api-key-field"),
     apiKeyInput: card.querySelector(".api-key"),
-    uploadAuthHintEl: card.querySelector(".upload-auth-hint"),
+    apiKeyHintEl: card.querySelector(".api-key-hint"),
+    legacyUploadAuthHintEl: card.querySelector(".legacy-upload-auth-hint"),
+    instanceVersionEl: card.querySelector(".instance-version"),
     ratingInput: card.querySelector(".rating")
   };
 

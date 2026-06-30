@@ -168,6 +168,18 @@
   "labelApiKey": {
     "message": "API-Schlüssel:"
   },
+  "placeholderApiKey": {
+    "message": "blom_…"
+  },
+  "hintApiKeyBefore": {
+    "message": "Erstellen Sie einen API-Schlüssel im "
+  },
+  "hintApiKeyAdminLink": {
+    "message": "Admin-Bereich"
+  },
+  "hintApiKeyAfter": {
+    "message": " mit Upload-Berechtigung."
+  },
   "hintUploadAuthBefore": {
     "message": "Wenn Uploads fehlschlagen, melden Sie sich im "
   },
@@ -227,6 +239,15 @@
   },
   "statusConnectionSuccess": {
     "message": "Verbindung erfolgreich!"
+  },
+  "statusBlombooruVersion": {
+    "message": "Blombooru $1$",
+    "placeholders": {
+      "1": {
+        "content": "$1",
+        "example": "1.40.1"
+      }
+    }
   },
   "statusSettingsSaved": {
     "message": "Einstellungen gespeichert."
@@ -333,6 +354,9 @@
   "errorUploadAuthRequired": {
     "message": "Upload fehlgeschlagen: Authentifizierung erforderlich. Melden Sie sich auf der Blombooru-Adminseite an und versuchen Sie es erneut."
   },
+  "errorApiKeyRequired": {
+    "message": "Authentifizierung erforderlich. Geben Sie oben Ihren API-Schlüssel ein."
+  },
   "errorUploadHostPermission": {
     "message": "Upload abgebrochen: Erlauben Sie den Zugriff auf Ihren Blombooru-Server, wenn Sie dazu aufgefordert werden."
   },
@@ -372,8 +396,14 @@
   "popupUploadAuthFailedAfter": {
     "message": " Ihres Blombooru und melden Sie sich an, um die erforderlichen Cookies zu erhalten"
   },
+  "popupUploadApiKeyRequired": {
+    "message": "Upload fehlgeschlagen: Fügen Sie einen API-Schlüssel in den Erweiterungseinstellungen hinzu und versuchen Sie es erneut."
+  },
   "notifyUploadAuthAdminLogin": {
     "message": "Upload fehlgeschlagen: Melden Sie sich im Browser auf der Blombooru-Adminseite an und versuchen Sie den Upload erneut."
+  },
+  "notifyUploadApiKeyRequired": {
+    "message": "Upload fehlgeschlagen: Fügen Sie einen API-Schlüssel in den Erweiterungseinstellungen hinzu und versuchen Sie den Upload erneut."
   },
   "errorUploadMethodNotAllowed": {
     "message": "Upload fehlgeschlagen: Methode nicht erlaubt. Prüfen Sie die Blombooru-Basis-URL."
