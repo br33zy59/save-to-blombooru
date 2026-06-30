@@ -272,10 +272,107 @@ async function fetchGalleryPreviewMedia({ tabId, srcUrl }) {
       mimeType,
       base64,
       width,
-      height
+      height,
+      byteSize: blob.size
     };
   } catch (err) {
     return { ok: false, error: err.message || "fetch_failed" };
+  }
+}
+
+async function probeMediaByteSize(tabId, srcUrl) {
+  if (!srcUrl) {
+    return null;
+  }
+
+  if (isDataMediaUrl(srcUrl)) {
+    try {
+      return parseDataUrlToBlob(srcUrl).size;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  const normalizedTabId = normalizeTabId(tabId);
+
+  if (isBlobMediaUrl(srcUrl) && normalizedTabId >= 0) {
+    const payload = await probeTabMediaPayload(normalizedTabId, srcUrl);
+
+    if (payload?.base64) {
+      return base64ToBlob(payload.base64, payload.mimeType).size;
+    }
+
+    return null;
+  }
+
+  if (!hasInstallTimeBroadHostAccess() && normalizedTabId >= 0) {
+    const payload = await probeTabMediaPayload(normalizedTabId, srcUrl);
+
+    if (payload?.base64) {
+      return base64ToBlob(payload.base64, payload.mimeType).size;
+    }
+  }
+
+  let originPattern;
+
+  try {
+    originPattern = originPatternFromUrl(srcUrl);
+  } catch (err) {
+    originPattern = null;
+  }
+
+  if (!originPattern) {
+    return null;
+  }
+
+  const hasPermission = await ensureHostPermission(originPattern, false);
+
+  if (!hasPermission) {
+    return null;
+  }
+
+  try {
+    const headResponse = await fetch(srcUrl, { method: "HEAD" });
+
+    if (headResponse.ok) {
+      const contentLength = headResponse.headers.get("Content-Length");
+
+      if (contentLength) {
+        const bytes = Number.parseInt(contentLength, 10);
+
+        if (Number.isFinite(bytes) && bytes >= 0) {
+          return bytes;
+        }
+      }
+    }
+  } catch (err) {
+    // Fall through to full fetch.
+  }
+
+  try {
+    const blob = await fetchMediaBlob(srcUrl, false);
+
+    return blob?.size ?? null;
+  } catch (err) {
+    return null;
+  }
+}
+
+async function fetchMediaByteSize({ tabId, srcUrl }) {
+  if (!srcUrl) {
+    return { ok: false, error: "missing_url" };
+  }
+
+  try {
+    const byteSize = await probeMediaByteSize(tabId, srcUrl);
+
+    if (byteSize == null || !Number.isFinite(byteSize)) {
+      return { ok: false, error: "unavailable" };
+    }
+
+    return { ok: true, byteSize };
+  } catch (err) {
+    return { ok: false, error: err.message || "probe_failed" };
   }
 }
 
@@ -375,6 +472,41 @@ async function deferSaveForMediaHostPermissionPopupRetry({
   );
 }
 
+async function ensureTransferThumbUrl(tabId, srcUrl, thumbUrl) {
+  if (thumbUrl && !isVideoPreviewUrl(thumbUrl)) {
+    return thumbUrl;
+  }
+
+  const normalizedTabId = normalizeTabId(tabId);
+
+  if (normalizedTabId < 0 || !srcUrl) {
+    return pickTransferHistoryThumbUrl({ thumbUrl, srcUrl });
+  }
+
+  try {
+    const resolved = await resolveContextMenuMedia(normalizedTabId, srcUrl, {
+      useCache: true
+    });
+
+    if (
+      resolved?.displayUrl &&
+      resolved?.uploadUrl &&
+      resolved.displayUrl !== resolved.uploadUrl &&
+      !isVideoPreviewUrl(resolved.displayUrl)
+    ) {
+      return resolved.displayUrl;
+    }
+
+    if (resolved?.displayUrl && !isVideoPreviewUrl(resolved.displayUrl)) {
+      return resolved.displayUrl;
+    }
+  } catch (err) {
+    console.warn("Transfer thumb resolve failed:", err);
+  }
+
+  return pickTransferHistoryThumbUrl({ thumbUrl, srcUrl });
+}
+
 async function saveMediaToBlombooru({
   tabId,
   pageUrl,
@@ -396,13 +528,19 @@ async function saveMediaToBlombooru({
     throw new Error(browser.i18n.getMessage("popupGalleryServerOnPage"));
   }
 
+  const normalizedTabId = normalizeTabId(tabId);
+  const resolvedThumbUrl = await ensureTransferThumbUrl(
+    normalizedTabId,
+    srcUrl,
+    thumbUrl
+  );
+
   const transferId = await beginTransferEntry({
     srcUrl,
-    thumbUrl: thumbUrl || srcUrl,
+    thumbUrl: resolvedThumbUrl,
     serverId
   });
 
-  const normalizedTabId = normalizeTabId(tabId);
   const requestBooruPermission =
     !booruPermissionsPreGranted && !hasInstallTimeBroadHostAccess();
   const requestMediaPermission =
@@ -446,6 +584,9 @@ async function saveMediaToBlombooru({
     throw new Error(message);
   }
 
+  const uploadByteSize = preparedUpload.mediaBlob.size;
+  await updateTransferEntryByteSize(transferId, uploadByteSize);
+
   try {
     const uploadResult = await performUpload({
       mediaBlob: preparedUpload.mediaBlob,
@@ -455,10 +596,13 @@ async function saveMediaToBlombooru({
       serverId: server.id
     });
     await finishTransferEntry(transferId, TRANSFER_STATUS_SUCCESS, "", {
-      mediaPageUrl: uploadResult?.mediaPageUrl || ""
+      mediaPageUrl: uploadResult?.mediaPageUrl || "",
+      byteSize: uploadByteSize
     });
   } catch (err) {
-    await finishTransferEntry(transferId, TRANSFER_STATUS_FAILURE, err.message);
+    await finishTransferEntry(transferId, TRANSFER_STATUS_FAILURE, err.message, {
+      byteSize: uploadByteSize
+    });
     throw err;
   }
 }
@@ -605,8 +749,16 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "fetchMediaByteSize") {
+    fetchMediaByteSize(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+
+    return true;
+  }
+
   if (message?.type === "galleryMediaHostPermissionSettled") {
-    const { granted, srcUrl, serverId, tabId, pageUrl } = message.payload ?? {};
+    const { granted, srcUrl, serverId, tabId, pageUrl, thumbUrl } = message.payload ?? {};
 
     (async () => {
       if (!granted) {
@@ -620,6 +772,7 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         tabId,
         pageUrl,
         srcUrl,
+        thumbUrl: message.payload?.thumbUrl,
         serverId,
         booruPermissionsPreGranted: true,
         mediaPermissionsPreGranted: true

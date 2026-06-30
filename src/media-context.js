@@ -788,6 +788,47 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     return null;
   }
 
+  /** On-page image thumb for a full video (or other full) URL, when thumb/full are separate. */
+  function findThumbUrlForFullTarget(targetUrl) {
+    const normalized = normalizeMediaUrl(targetUrl);
+    if (!normalized) {
+      return null;
+    }
+
+    for (const anchor of document.querySelectorAll("a[href], a.fileThumb")) {
+      const href = normalizeMediaUrl(anchor.href);
+      if (!href || !urlsMatchForLookup(href, normalized)) {
+        continue;
+      }
+
+      for (const img of anchor.querySelectorAll("img")) {
+        const thumbUrl = normalizeMediaUrl(img.currentSrc || img.src);
+        if (
+          thumbUrl &&
+          isUsableMediaUrl(thumbUrl) &&
+          looksLikeDirectImageUrl(thumbUrl) &&
+          !looksLikeDirectVideoUrl(thumbUrl)
+        ) {
+          return thumbUrl;
+        }
+      }
+    }
+
+    for (const img of document.querySelectorAll("img")) {
+      const displayUrl = normalizeMediaUrl(img.currentSrc || img.src);
+      if (!displayUrl || !isUsableMediaUrl(displayUrl)) {
+        continue;
+      }
+
+      const best = resolveBestUploadUrl(img, displayUrl);
+      if (best?.url && urlsMatchForLookup(best.url, normalized)) {
+        return displayUrl;
+      }
+    }
+
+    return null;
+  }
+
   function buildImageItem(img) {
     const displayUrl = normalizeMediaUrl(img.currentSrc || img.src);
     if (!displayUrl || !isUsableMediaUrl(displayUrl)) {
@@ -824,7 +865,7 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
   function buildVideoItem(video) {
     const streamUrl = getVideoStreamUrl(video);
     const posterUrl = getVideoPosterUrl(video);
-    const displayUrl = posterUrl || streamUrl;
+    let displayUrl = posterUrl || streamUrl;
 
     if (!displayUrl || !isUsableMediaUrl(displayUrl)) {
       return null;
@@ -832,6 +873,19 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
 
     const best = resolveBestUploadUrl(video, displayUrl);
     const uploadUrl = best?.url || streamUrl || displayUrl;
+
+    if (
+      uploadUrl &&
+      looksLikeDirectVideoUrl(uploadUrl) &&
+      (!displayUrl ||
+        urlsReferToSameMedia(displayUrl, uploadUrl) ||
+        looksLikeDirectVideoUrl(displayUrl))
+    ) {
+      const thumbFromPage = findThumbUrlForFullTarget(uploadUrl);
+      if (thumbFromPage) {
+        displayUrl = thumbFromPage;
+      }
+    }
 
     return {
       displayUrl,
@@ -1185,14 +1239,32 @@ function enumeratePageMediaInPage(lookupSrcUrl) {
     const item = el ? itemForMediaElement(el) : null;
 
     if (item) {
+      const uploadUrl = item.uploadUrl || normalized;
+
+      if (
+        looksLikeDirectVideoUrl(uploadUrl) &&
+        (!item.displayUrl ||
+          urlsReferToSameMedia(item.displayUrl, uploadUrl) ||
+          looksLikeDirectVideoUrl(item.displayUrl))
+      ) {
+        const thumbUrl = findThumbUrlForFullTarget(uploadUrl);
+        if (thumbUrl) {
+          return { ...item, displayUrl: thumbUrl };
+        }
+      }
+
       return item;
     }
 
     if (looksLikeUploadableMediaUrl(normalized) && !isLikelyThumbUrl(normalized)) {
+      const thumbUrl = looksLikeDirectVideoUrl(normalized)
+        ? findThumbUrlForFullTarget(normalized)
+        : null;
+
       return {
-        displayUrl: normalized,
+        displayUrl: thumbUrl || normalized,
         uploadUrl: normalized,
-        resolveMethod: "direct-url"
+        resolveMethod: thumbUrl ? "thumb-for-full" : "direct-url"
       };
     }
 

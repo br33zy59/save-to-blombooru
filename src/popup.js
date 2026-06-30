@@ -96,11 +96,151 @@ let popupRefreshInFlight = false;
 
 const GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS = 220;
 const galleryRemoteFullPreviewCache = new Map();
+const galleryUploadByteSizeCache = new Map();
+const galleryByteSizeProbeInFlight = new Set();
 let galleryHoverPreviewSession = 0;
 let galleryHoverPreviewContext = null;
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const galleryUploadFeedbackTimeouts = new Map();
 let galleryRemoteFullPreviewTimer = null;
+
+function uploadUrlForGalleryItem(item) {
+  return item.uploadUrl || item.displayUrl || item.srcUrl || "";
+}
+
+function galleryFilenameLabel(item) {
+  const uploadUrl = uploadUrlForGalleryItem(item);
+
+  return previewFilenameFromUrl(uploadUrl) || item.filename || item.kind || "";
+}
+
+function clearGalleryUploadByteSizeCache() {
+  galleryUploadByteSizeCache.clear();
+  galleryByteSizeProbeInFlight.clear();
+}
+
+function refreshGalleryHoverPreviewCaptionIfActive(uploadUrl) {
+  const context = galleryHoverPreviewContext;
+
+  if (!context || context.uploadUrl !== uploadUrl) {
+    return;
+  }
+
+  if (!galleryHoverPreview.classList.contains("gallery-hover-preview--visible")) {
+    return;
+  }
+
+  const cachedRemote = galleryRemoteFullPreviewCache.get(uploadUrl);
+  const hasDistinctUpload = context.displayUrl && context.uploadUrl !== context.displayUrl;
+  const showFullOnPage = Boolean(hasDistinctUpload && context.fullOnPage);
+  const previewWidth = cachedRemote
+    ? cachedRemote.width || context.intrinsicWidth
+    : showFullOnPage
+      ? context.fullIntrinsicWidth || context.intrinsicWidth
+      : context.intrinsicWidth;
+  const previewHeight = cachedRemote
+    ? cachedRemote.height || context.intrinsicHeight
+    : showFullOnPage
+      ? context.fullIntrinsicHeight || context.intrinsicHeight
+      : context.intrinsicHeight;
+  const dimensionsUnknown = Boolean(
+    hasDistinctUpload && !showFullOnPage && !cachedRemote
+  );
+
+  updateGalleryHoverPreviewCaption(
+    context.labelUrl,
+    dimensionsUnknown,
+    previewWidth,
+    previewHeight,
+    context.altText,
+    context.uploadUrl
+  );
+}
+
+function setGalleryUploadByteSize(uploadUrl, byteSize) {
+  if (!uploadUrl || !Number.isFinite(byteSize) || byteSize < 0) {
+    return;
+  }
+
+  galleryUploadByteSizeCache.set(uploadUrl, byteSize);
+  const formatted = formatFileByteSize(byteSize);
+
+  for (const cell of pageMediaHost.querySelectorAll(".media-cell")) {
+    if (cell.dataset.uploadUrl !== uploadUrl) {
+      continue;
+    }
+
+    const label = cell.querySelector(".media-filename");
+
+    if (label) {
+      const base =
+        label.dataset.baseLabel ||
+        label.textContent.split(" · ")[0] ||
+        previewFilenameFromUrl(uploadUrl);
+
+      label.dataset.baseLabel = base;
+      label.textContent = `${base} · ${formatted}`;
+    }
+
+    cell.dataset.byteSize = String(byteSize);
+  }
+
+  refreshGalleryHoverPreviewCaptionIfActive(uploadUrl);
+}
+
+async function probeGalleryUploadByteSize(uploadUrl) {
+  if (!uploadUrl || galleryUploadByteSizeCache.has(uploadUrl)) {
+    return;
+  }
+
+  if (galleryByteSizeProbeInFlight.has(uploadUrl)) {
+    return;
+  }
+
+  galleryByteSizeProbeInFlight.add(uploadUrl);
+
+  try {
+    const response = await browser.runtime.sendMessage({
+      type: "fetchMediaByteSize",
+      payload: {
+        tabId: gallerySourceTabId,
+        srcUrl: uploadUrl
+      }
+    });
+
+    if (response?.ok && Number.isFinite(response.byteSize)) {
+      setGalleryUploadByteSize(uploadUrl, response.byteSize);
+    }
+  } catch (err) {
+    console.warn("Gallery byte-size probe failed:", err);
+  } finally {
+    galleryByteSizeProbeInFlight.delete(uploadUrl);
+  }
+}
+
+function scheduleGalleryUploadByteSizeProbes(items) {
+  const uploadUrls = new Set();
+
+  for (const item of items) {
+    const uploadUrl = uploadUrlForGalleryItem(item);
+
+    if (uploadUrl) {
+      uploadUrls.add(uploadUrl);
+    }
+  }
+
+  for (const uploadUrl of uploadUrls) {
+    void probeGalleryUploadByteSize(uploadUrl);
+  }
+}
+
+function ensureGalleryUploadByteSizeProbed(uploadUrl) {
+  if (!uploadUrl || galleryUploadByteSizeCache.has(uploadUrl)) {
+    return;
+  }
+
+  void probeGalleryUploadByteSize(uploadUrl);
+}
 
 function defaultSortAscending(sortKey) {
   return sortKey !== GALLERY_SORT_PIXELS;
@@ -429,6 +569,7 @@ function applyGalleryView() {
   clearPageMediaStatus();
   const sorted = sortGalleryItems(filtered, galleryViewSort, galleryViewSortAscending);
   renderPageMediaGallery(sorted);
+  scheduleGalleryUploadByteSizeProbes(sorted);
   void applyPendingPopupAlerts();
 }
 
@@ -546,14 +687,17 @@ async function ensureGalleryRemoteFullPreview(uploadUrl, kind) {
   const blob = base64ToBlob(response.base64, response.mimeType);
   const objectUrl = URL.createObjectURL(blob);
   const useVideo = kind === "video" && isDirectVideoPreviewUrl(uploadUrl);
+  const byteSize = response.byteSize ?? blob.size;
   const entry = {
     objectUrl,
     width: response.width || 0,
     height: response.height || 0,
+    byteSize,
     useVideo
   };
 
   galleryRemoteFullPreviewCache.set(uploadUrl, entry);
+  setGalleryUploadByteSize(uploadUrl, byteSize);
   return entry;
 }
 
@@ -593,7 +737,8 @@ function scheduleGalleryRemoteFullPreviewUpgrade(context) {
         previewHeight,
         false,
         context.labelUrl,
-        entry.useVideo
+        entry.useVideo,
+        context.uploadUrl
       );
     })();
   }, GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS);
@@ -703,7 +848,10 @@ function renderTransferHistory(entries) {
     thumb.alt = "";
     thumb.loading = "lazy";
     thumb.decoding = "async";
-    thumb.src = entry.thumbUrl || entry.srcUrl;
+    thumb.src = pickTransferHistoryThumbUrl({
+      thumbUrl: entry.thumbUrl,
+      srcUrl: entry.srcUrl
+    });
     thumb.addEventListener("error", () => {
       thumb.classList.add("transfer-history__thumb--broken");
       thumb.removeAttribute("src");
@@ -736,7 +884,13 @@ function renderTransferHistory(entries) {
       status.title = entry.errorMessage;
     }
 
-    item.append(thumb, url, status);
+    const sizeText = formatFileByteSize(entry.byteSize);
+    const size = document.createElement("span");
+    size.className = "transfer-history__size";
+    size.textContent = sizeText;
+    size.hidden = !sizeText;
+
+    item.append(thumb, url, size, status);
     transferHistoryList.appendChild(item);
   }
 
@@ -755,10 +909,32 @@ async function loadTransferHistory() {
   renderTransferHistory(await readTransferHistory());
 }
 
-function thumbUrlForGallerySave(uploadUrl) {
-  const cell = findGalleryCellForSrcUrl(uploadUrl);
+function galleryThumbUrlForSave(uploadUrl, anchorEl = null) {
+  const cell =
+    anchorEl?.classList?.contains("media-cell")
+      ? anchorEl
+      : findGalleryCellForSrcUrl(uploadUrl);
 
-  return cell?.dataset.displayUrl || uploadUrl;
+  if (!cell) {
+    return null;
+  }
+
+  const displayUrl = cell.dataset.displayUrl || "";
+  const cellUploadUrl = cell.dataset.uploadUrl || "";
+
+  if (displayUrl && cellUploadUrl && displayUrl !== cellUploadUrl) {
+    return displayUrl;
+  }
+
+  if (displayUrl && !isVideoPreviewUrl(displayUrl)) {
+    return displayUrl;
+  }
+
+  return null;
+}
+
+function thumbUrlForGallerySave(uploadUrl, anchorEl = null) {
+  return galleryThumbUrlForSave(uploadUrl, anchorEl) || uploadUrl;
 }
 
 function hideGalleryHoverPreview() {
@@ -824,7 +1000,8 @@ function updateGalleryHoverPreviewCaption(
   dimensionsUnknown,
   intrinsicWidth,
   intrinsicHeight,
-  altText
+  altText,
+  uploadUrl = ""
 ) {
   const filename = previewFilenameFromUrl(labelUrl) || (altText || "").trim();
 
@@ -836,10 +1013,11 @@ function updateGalleryHoverPreviewCaption(
     galleryHoverPreviewFilename.hidden = true;
   }
 
+  const sizeText = uploadUrl ? formatFileByteSize(galleryUploadByteSizeCache.get(uploadUrl)) : "";
+
   if (dimensionsUnknown) {
-    galleryHoverPreviewDimensions.textContent = browser.i18n.getMessage(
-      "popupGalleryPreviewDimensionsUnknown"
-    );
+    const unknown = browser.i18n.getMessage("popupGalleryPreviewDimensionsUnknown");
+    galleryHoverPreviewDimensions.textContent = sizeText ? `${unknown} · ${sizeText}` : unknown;
     galleryHoverPreviewDimensions.hidden = false;
     return;
   }
@@ -854,7 +1032,13 @@ function updateGalleryHoverPreviewCaption(
     galleryHoverPreviewImg.naturalHeight;
 
   if (width > 0 && height > 0) {
-    galleryHoverPreviewDimensions.textContent = `${width} × ${height}`;
+    const dimensions = `${width} × ${height}`;
+    galleryHoverPreviewDimensions.textContent = sizeText
+      ? `${dimensions} · ${sizeText}`
+      : dimensions;
+    galleryHoverPreviewDimensions.hidden = false;
+  } else if (sizeText) {
+    galleryHoverPreviewDimensions.textContent = sizeText;
     galleryHoverPreviewDimensions.hidden = false;
   } else {
     galleryHoverPreviewDimensions.textContent = "";
@@ -887,7 +1071,8 @@ function layoutGalleryHoverPreview(
   intrinsicHeight,
   dimensionsUnknown,
   labelUrl,
-  altText
+  altText,
+  uploadUrl = ""
 ) {
   const maxHeight = Math.min(GALLERY_PREVIEW_MAX_HEIGHT, window.innerHeight - 24);
   const aspectW =
@@ -921,7 +1106,8 @@ function layoutGalleryHoverPreview(
     dimensionsUnknown,
     intrinsicWidth,
     intrinsicHeight,
-    altText
+    altText,
+    uploadUrl
   );
 }
 
@@ -932,7 +1118,8 @@ function showGalleryHoverPreview(
   intrinsicHeight,
   dimensionsUnknown,
   labelUrl,
-  useVideoPreview = false
+  useVideoPreview = false,
+  uploadUrl = ""
 ) {
   const captionLabelUrl = labelUrl ?? previewUrl;
 
@@ -948,7 +1135,8 @@ function showGalleryHoverPreview(
       intrinsicHeight,
       dimensionsUnknown,
       captionLabelUrl,
-      altText
+      altText,
+      uploadUrl
     );
   };
 
@@ -1069,8 +1257,13 @@ function bindGalleryHoverPreview(cell, item) {
       altText,
       labelUrl,
       intrinsicWidth,
-      intrinsicHeight
+      intrinsicHeight,
+      fullOnPage,
+      fullIntrinsicWidth,
+      fullIntrinsicHeight
     };
+
+    ensureGalleryUploadByteSizeProbed(uploadUrl);
 
     showGalleryHoverPreview(
       previewUrl,
@@ -1079,7 +1272,8 @@ function bindGalleryHoverPreview(cell, item) {
       previewHeight,
       dimensionsUnknown,
       labelUrl,
-      useVideoPreview
+      useVideoPreview,
+      uploadUrl
     );
 
     if (needsRemoteFull && !cachedRemote) {
@@ -1271,13 +1465,16 @@ function galleryBooruPermissionPatterns(server) {
   }
 }
 
-function runGalleryMediaHostPermissionRetry(srcUrl, serverId, server) {
+function runGalleryMediaHostPermissionRetry(srcUrl, serverId, server, thumbUrl = null) {
   closeGalleryServerMenu();
   hideGalleryHoverPreview();
 
+  const resolvedThumbUrl = thumbUrl || galleryThumbUrlForSave(srcUrl);
+
   if (hasInstallTimeBroadHostAccess()) {
     void beginGallerySaveWithPermissions(srcUrl, serverId, server, {
-      isMediaHostRetry: true
+      isMediaHostRetry: true,
+      thumbUrl: resolvedThumbUrl
     });
     return;
   }
@@ -1288,13 +1485,15 @@ function runGalleryMediaHostPermissionRetry(srcUrl, serverId, server) {
 
   if (mediaRequests.length === 0) {
     void beginGallerySaveWithPermissions(srcUrl, serverId, server, {
-      isMediaHostRetry: true
+      isMediaHostRetry: true,
+      thumbUrl: resolvedThumbUrl
     });
     return;
   }
 
   const payload = {
     srcUrl,
+    thumbUrl: resolvedThumbUrl,
     serverId,
     tabId: gallerySourceTabId,
     pageUrl: galleryPageUrl
@@ -1531,7 +1730,7 @@ async function applyPendingMediaHostRetryUi() {
   }
 }
 
-async function startGallerySave(srcUrl, serverId, tabPayload = null) {
+async function startGallerySave(srcUrl, serverId, tabPayload = null, thumbUrl = null) {
   closeGalleryServerMenu();
 
   try {
@@ -1541,7 +1740,7 @@ async function startGallerySave(srcUrl, serverId, tabPayload = null) {
         tabId: gallerySourceTabId,
         pageUrl: galleryPageUrl,
         srcUrl,
-        thumbUrl: thumbUrlForGallerySave(srcUrl),
+        thumbUrl: thumbUrl || galleryThumbUrlForSave(srcUrl),
         serverId,
         tabPayload,
         booruPermissionsPreGranted: true,
@@ -1569,13 +1768,15 @@ async function beginGallerySaveWithPermissions(
   srcUrl,
   serverId,
   server,
-  { isMediaHostRetry = false } = {}
+  { isMediaHostRetry = false, thumbUrl = null } = {}
 ) {
   closeGalleryServerMenu();
 
+  const resolvedThumbUrl = thumbUrl || galleryThumbUrlForSave(srcUrl);
+
   if (hasInstallTimeBroadHostAccess()) {
     await clearMediaHostRetryState();
-    void startGallerySave(srcUrl, serverId);
+    void startGallerySave(srcUrl, serverId, null, resolvedThumbUrl);
     return;
   }
 
@@ -1598,9 +1799,10 @@ async function beginGallerySaveWithPermissions(
           tabId: gallerySourceTabId,
           pageUrl: galleryPageUrl,
           srcUrl,
+          thumbUrl: resolvedThumbUrl,
           serverId
         });
-        mediaHostRetryTarget = { srcUrl, serverId, server };
+        mediaHostRetryTarget = { srcUrl, serverId, server, thumbUrl: resolvedThumbUrl };
         await applyPendingMediaHostRetryUi();
         return;
       }
@@ -1611,7 +1813,12 @@ async function beginGallerySaveWithPermissions(
   }
 
   await clearMediaHostRetryState();
-  void startGallerySave(srcUrl, serverId, tabPayloadForSrcUrl(tabPayload, srcUrl));
+  void startGallerySave(
+    srcUrl,
+    serverId,
+    tabPayloadForSrcUrl(tabPayload, srcUrl),
+    resolvedThumbUrl
+  );
 }
 
 function resolveMediaHostRetryServer() {
@@ -1642,21 +1849,29 @@ function tryHandleGalleryMediaHostRetryClick(srcUrl) {
   return true;
 }
 
-function triggerGallerySave(srcUrl, server) {
+function triggerGallerySave(srcUrl, server, { thumbUrl = null, anchorEl = null } = {}) {
   const serverId = server.id;
+  const resolvedThumbUrl = thumbUrl || galleryThumbUrlForSave(srcUrl, anchorEl);
   const isMediaHostRetry =
     mediaHostRetryTarget?.srcUrl === srcUrl &&
     mediaHostRetryTarget?.serverId === serverId;
 
   if (isMediaHostRetry) {
-    runGalleryMediaHostPermissionRetry(srcUrl, serverId, server);
+    runGalleryMediaHostPermissionRetry(
+      srcUrl,
+      serverId,
+      server,
+      mediaHostRetryTarget?.thumbUrl || resolvedThumbUrl
+    );
     return;
   }
 
-  void beginGallerySaveWithPermissions(srcUrl, serverId, server);
+  void beginGallerySaveWithPermissions(srcUrl, serverId, server, {
+    thumbUrl: resolvedThumbUrl
+  });
 }
 
-function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl }) {
+function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl, thumbUrl }) {
   const item = document.createElement("button");
   item.type = "button";
   item.className = "gallery-server-menu-item";
@@ -1673,7 +1888,7 @@ function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl }) {
   } else {
     item.addEventListener("click", (event) => {
       event.stopPropagation();
-      triggerGallerySave(srcUrl, server);
+      triggerGallerySave(srcUrl, server, { thumbUrl });
     });
   }
 
@@ -1682,6 +1897,7 @@ function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl }) {
 
 async function openGalleryServerMenu(srcUrl, anchorEl) {
   try {
+    const thumbUrl = galleryThumbUrlForSave(srcUrl, anchorEl);
     const allServers = await getServersFromStorage();
     const { configured, available, onPage } = partitionServersForPage(
       galleryPageUrl,
@@ -1706,11 +1922,15 @@ async function openGalleryServerMenu(srcUrl, anchorEl) {
     }
 
     for (const server of available) {
-      appendGalleryServerMenuItem(server, configured, { disabled: false, srcUrl });
+      appendGalleryServerMenuItem(server, configured, {
+        disabled: false,
+        srcUrl,
+        thumbUrl
+      });
     }
 
     for (const server of onPage) {
-      appendGalleryServerMenuItem(server, configured, { disabled: true, srcUrl });
+      appendGalleryServerMenuItem(server, configured, { disabled: true, srcUrl, thumbUrl });
     }
 
     anchorEl.appendChild(galleryServerMenu);
@@ -1748,7 +1968,7 @@ async function handleGallerySaveTrigger(srcUrl, anchorEl) {
   }
 
   if (available.length === 1) {
-    triggerGallerySave(srcUrl, available[0]);
+    triggerGallerySave(srcUrl, available[0], { thumbUrl: galleryThumbUrlForSave(srcUrl, anchorEl), anchorEl });
     return;
   }
 
@@ -1860,7 +2080,17 @@ function renderPageMediaGallery(items) {
 
     const label = document.createElement("div");
     label.className = "media-filename";
-    label.textContent = item.filename || item.kind;
+    const filename = galleryFilenameLabel(item);
+    label.dataset.baseLabel = filename;
+    label.textContent = filename;
+
+    const cachedSize = galleryUploadByteSizeCache.get(uploadUrl);
+
+    if (cachedSize != null) {
+      label.textContent = `${filename} · ${formatFileByteSize(cachedSize)}`;
+      cell.dataset.byteSize = String(cachedSize);
+    }
+
     cell.appendChild(label);
 
     bindGalleryHoverPreview(cell, item);
@@ -1896,6 +2126,7 @@ galleryHoverPreviewPane.addEventListener("mouseleave", (event) => {
 async function refreshPageGallery() {
   const refreshId = ++pageGalleryRefreshId;
   revokeGalleryRemoteFullPreviewCache();
+  clearGalleryUploadByteSizeCache();
   pageMediaSection.hidden = false;
   showPageMediaLoading();
 
