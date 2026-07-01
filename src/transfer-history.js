@@ -17,18 +17,6 @@ function isVideoPreviewUrl(url) {
   }
 }
 
-function pickTransferHistoryThumbUrl({ thumbUrl, srcUrl }) {
-  if (thumbUrl && !isVideoPreviewUrl(thumbUrl)) {
-    return thumbUrl;
-  }
-
-  if (srcUrl && !isVideoPreviewUrl(srcUrl)) {
-    return srcUrl;
-  }
-
-  return thumbUrl || srcUrl || "";
-}
-
 function formatFileByteSize(bytes) {
   if (bytes == null || !Number.isFinite(bytes) || bytes < 0) {
     return "";
@@ -71,11 +59,10 @@ async function writeTransferHistory(entries) {
   });
 }
 
-async function beginTransferEntry({ srcUrl, thumbUrl, serverId }) {
+async function beginTransferEntry({ srcUrl, serverId }) {
   const entry = {
     id: createTransferId(),
     srcUrl: srcUrl || "",
-    thumbUrl: thumbUrl || srcUrl || "",
     serverId: serverId || "",
     status: TRANSFER_STATUS_PENDING,
     startedAt: Date.now()
@@ -134,4 +121,8 @@ async function updateTransferEntryByteSize(transferId, byteSize) {
   };
 
   await writeTransferHistory(entries);
+}
+
+async function clearTransferHistory() {
+  await writeTransferHistory([]);
 }

@@ -62,6 +62,9 @@
   "popupTransferHistoryEmpty": {
     "message": "Aún no hay subidas."
   },
+  "popupTransferHistoryClear": {
+    "message": "Borrar historial"
+  },
   "popupTransferStatusPending": {
     "message": "Subiendo"
   },
@@ -70,9 +73,6 @@
   },
   "popupTransferStatusFailure": {
     "message": "Error al subir"
-  },
-  "popupGalleryPreviewDimensionsUnknown": {
-    "message": "Resolución desconocida"
   },
   "popupGalleryFilterLabel": {
     "message": "Mostrar"
@@ -302,48 +302,6 @@
   },
   "contextMenuWithHost": {
     "message": "Guardar en Blombooru ($1$)",
-    "placeholders": {
-      "1": {
-        "content": "$1",
-        "example": "booru.example.com"
-      }
-    }
-  },
-  "contextMenuThumbnailBase": {
-    "message": "Guardar miniatura en Blombooru"
-  },
-  "contextMenuThumbnailWithName": {
-    "message": "Guardar miniatura en $1$",
-    "placeholders": {
-      "1": {
-        "content": "$1",
-        "example": "Home"
-      }
-    }
-  },
-  "contextMenuThumbnailWithHost": {
-    "message": "Guardar miniatura en Blombooru ($1$)",
-    "placeholders": {
-      "1": {
-        "content": "$1",
-        "example": "booru.example.com"
-      }
-    }
-  },
-  "contextMenuFullBase": {
-    "message": "Guardar imagen completa en Blombooru"
-  },
-  "contextMenuFullWithName": {
-    "message": "Guardar imagen completa en $1$",
-    "placeholders": {
-      "1": {
-        "content": "$1",
-        "example": "Home"
-      }
-    }
-  },
-  "contextMenuFullWithHost": {
-    "message": "Guardar imagen completa en Blombooru ($1$)",
     "placeholders": {
       "1": {
         "content": "$1",

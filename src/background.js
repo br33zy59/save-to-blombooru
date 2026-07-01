@@ -211,208 +211,6 @@ async function resolveMediaBlob(
   throw new Error(browser.i18n.getMessage("errorDownloadFailed", "0"));
 }
 
-const GALLERY_PREVIEW_MAX_BYTES = 20 * 1024 * 1024;
-
-const verifiedDirectMediaCache = new Map();
-
-function isDirectMediaContentType(contentType) {
-  const type = (contentType || "").toLowerCase().split(";")[0].trim();
-
-  return type.startsWith("image/") || type.startsWith("video/");
-}
-
-async function verifyDirectMediaUrlViaGet(srcUrl) {
-  try {
-    const response = await fetch(srcUrl, {
-      method: "GET",
-      headers: { Range: "bytes=0-0" },
-      redirect: "follow"
-    });
-
-    if (!response.ok && response.status !== 206) {
-      return { ok: false };
-    }
-
-    return { ok: isDirectMediaContentType(response.headers.get("Content-Type")) };
-  } catch (err) {
-    return { ok: false };
-  }
-}
-
-async function verifyDirectMediaUrl(srcUrl, { requestPermission = false } = {}) {
-  if (!srcUrl) {
-    return { ok: false };
-  }
-
-  if (verifiedDirectMediaCache.has(srcUrl)) {
-    return verifiedDirectMediaCache.get(srcUrl);
-  }
-
-  if (isDataMediaUrl(srcUrl)) {
-    const result = { ok: isDirectMediaContentType(mimeFromDataUrl(srcUrl)) };
-    verifiedDirectMediaCache.set(srcUrl, result);
-    return result;
-  }
-
-  if (isBlobMediaUrl(srcUrl)) {
-    const result = { ok: true };
-    verifiedDirectMediaCache.set(srcUrl, result);
-    return result;
-  }
-
-  let originPattern;
-
-  try {
-    originPattern = originPatternFromUrl(srcUrl);
-  } catch (err) {
-    originPattern = null;
-  }
-
-  if (!originPattern) {
-    const result = { ok: false };
-    verifiedDirectMediaCache.set(srcUrl, result);
-    return result;
-  }
-
-  const hasPermission = await ensureHostPermission(originPattern, requestPermission);
-
-  if (!hasPermission) {
-    return { ok: false, permission: true };
-  }
-
-  let result;
-
-  try {
-    const headResponse = await fetch(srcUrl, { method: "HEAD", redirect: "follow" });
-
-    if (headResponse.ok) {
-      result = { ok: isDirectMediaContentType(headResponse.headers.get("Content-Type")) };
-    } else if (headResponse.status === 405 || headResponse.status === 501) {
-      result = await verifyDirectMediaUrlViaGet(srcUrl);
-    } else {
-      result = { ok: false };
-    }
-  } catch (err) {
-    result = await verifyDirectMediaUrlViaGet(srcUrl);
-  }
-
-  verifiedDirectMediaCache.set(srcUrl, result);
-  return result;
-}
-
-async function applyUploadUrlVerification(resolved, { requestPermission = false } = {}) {
-  if (!resolved?.displayUrl || !resolved?.uploadUrl) {
-    return resolved;
-  }
-
-  if (resolved.uploadUrl === resolved.displayUrl) {
-    return resolved;
-  }
-
-  const verification = await verifyDirectMediaUrl(resolved.uploadUrl, {
-    requestPermission
-  });
-
-  if (verification.ok) {
-    return resolved;
-  }
-
-  return {
-    ...resolved,
-    uploadUrl: resolved.displayUrl,
-    fullOnPage: false,
-    fullIntrinsicWidth: undefined,
-    fullIntrinsicHeight: undefined
-  };
-}
-
-async function resolveVerifiedUploadUrl(srcUrl, displayFallback, requestPermission) {
-  if (!srcUrl || !displayFallback || srcUrl === displayFallback) {
-    return srcUrl;
-  }
-
-  const verification = await verifyDirectMediaUrl(srcUrl, { requestPermission });
-
-  if (verification.permission || !verification.ok) {
-    return displayFallback;
-  }
-
-  return srcUrl;
-}
-
-async function blobToBase64ForMessage(blob) {
-  const buffer = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-
-  return btoa(binary);
-}
-
-async function dimensionsFromImageBlob(blob) {
-  if (typeof createImageBitmap !== "function") {
-    return { width: 0, height: 0 };
-  }
-
-  try {
-    const bitmap = await createImageBitmap(blob);
-    const size = { width: bitmap.width, height: bitmap.height };
-    bitmap.close();
-    return size;
-  } catch (err) {
-    return { width: 0, height: 0 };
-  }
-}
-
-/** Fetch linked full media for gallery hover preview (no Blombooru upload). */
-async function fetchGalleryPreviewMedia({ tabId, srcUrl }) {
-  if (!srcUrl) {
-    return { ok: false, error: "missing_url" };
-  }
-
-  const verification = await verifyDirectMediaUrl(srcUrl, { requestPermission: false });
-
-  if (!verification.ok) {
-    return { ok: false, error: "not_direct_media" };
-  }
-
-  try {
-    const blob = await resolveMediaBlob(tabId, srcUrl, false);
-
-    if (!blob) {
-      return { ok: false, error: "unavailable" };
-    }
-
-    if (blob.size > GALLERY_PREVIEW_MAX_BYTES) {
-      return { ok: false, error: "too_large" };
-    }
-
-    const mimeType = blob.type || "application/octet-stream";
-    let width = 0;
-    let height = 0;
-
-    if (mimeType.startsWith("image/")) {
-      ({ width, height } = await dimensionsFromImageBlob(blob));
-    }
-
-    const base64 = await blobToBase64ForMessage(blob);
-
-    return {
-      ok: true,
-      mimeType,
-      base64,
-      width,
-      height,
-      byteSize: blob.size
-    };
-  } catch (err) {
-    return { ok: false, error: err.message || "fetch_failed" };
-  }
-}
-
 async function probeMediaByteSize(tabId, srcUrl) {
   if (!srcUrl) {
     return null;
@@ -605,46 +403,10 @@ async function deferSaveForMediaHostPermissionPopupRetry({
   );
 }
 
-async function ensureTransferThumbUrl(tabId, srcUrl, thumbUrl) {
-  if (thumbUrl && !isVideoPreviewUrl(thumbUrl)) {
-    return thumbUrl;
-  }
-
-  const normalizedTabId = normalizeTabId(tabId);
-
-  if (normalizedTabId < 0 || !srcUrl) {
-    return pickTransferHistoryThumbUrl({ thumbUrl, srcUrl });
-  }
-
-  try {
-    const resolved = await resolveContextMenuMedia(normalizedTabId, srcUrl, {
-      useCache: true
-    });
-
-    if (
-      resolved?.displayUrl &&
-      resolved?.uploadUrl &&
-      resolved.displayUrl !== resolved.uploadUrl &&
-      !isVideoPreviewUrl(resolved.displayUrl)
-    ) {
-      return resolved.displayUrl;
-    }
-
-    if (resolved?.displayUrl && !isVideoPreviewUrl(resolved.displayUrl)) {
-      return resolved.displayUrl;
-    }
-  } catch (err) {
-    console.warn("Transfer thumb resolve failed:", err);
-  }
-
-  return pickTransferHistoryThumbUrl({ thumbUrl, srcUrl });
-}
-
 async function saveMediaToBlombooru({
   tabId,
   pageUrl,
   srcUrl,
-  thumbUrl = null,
   serverId,
   tabPayload = null,
   booruPermissionsPreGranted = false,
@@ -662,24 +424,13 @@ async function saveMediaToBlombooru({
   }
 
   const normalizedTabId = normalizeTabId(tabId);
-  const resolvedThumbUrl = await ensureTransferThumbUrl(
-    normalizedTabId,
-    srcUrl,
-    thumbUrl
-  );
   const requestBooruPermission =
     !booruPermissionsPreGranted && !hasInstallTimeBroadHostAccess();
   const requestMediaPermission =
     !mediaPermissionsPreGranted && !hasInstallTimeBroadHostAccess();
-  const uploadSrcUrl = await resolveVerifiedUploadUrl(
-    srcUrl,
-    resolvedThumbUrl || srcUrl,
-    requestMediaPermission
-  );
 
   const transferId = await beginTransferEntry({
-    srcUrl: uploadSrcUrl,
-    thumbUrl: resolvedThumbUrl,
+    srcUrl,
     serverId
   });
 
@@ -699,18 +450,18 @@ async function saveMediaToBlombooru({
     throw new Error(browser.i18n.getMessage("errorUploadHostPermission"));
   }
 
-  const caption = await captureMediaCaption(normalizedTabId, uploadSrcUrl);
+  const caption = await captureMediaCaption(normalizedTabId, srcUrl);
   const description = buildUploadDescription(caption);
 
   let preparedUpload;
   try {
     const mediaBlob = await resolveMediaBlob(
       normalizedTabId,
-      uploadSrcUrl,
+      srcUrl,
       requestMediaPermission,
-      { tabPayload: tabPayloadForSrcUrl(tabPayload, uploadSrcUrl) }
+      { tabPayload: tabPayloadForSrcUrl(tabPayload, srcUrl) }
     );
-    preparedUpload = await prepareMediaForUpload(mediaBlob, uploadSrcUrl);
+    preparedUpload = await prepareMediaForUpload(mediaBlob, srcUrl);
   } catch (err) {
     const message =
       err.message === "unsupported"
@@ -729,7 +480,7 @@ async function saveMediaToBlombooru({
     const uploadResult = await performUpload({
       mediaBlob: preparedUpload.mediaBlob,
       filename: preparedUpload.filename,
-      source: uploadSourceForSave(pageUrl, uploadSrcUrl),
+      source: uploadSourceForSave(pageUrl, srcUrl),
       description,
       serverId: server.id
     });
@@ -745,72 +496,8 @@ async function saveMediaToBlombooru({
   }
 }
 
-const contextMenuMediaCache = new Map();
 let configuredServersForMenus = [];
 let resumingPendingSave = false;
-
-function contextMenuMediaCacheKey(tabId, srcUrl) {
-  return `${tabId}:${srcUrl}`;
-}
-
-function invalidateContextMenuMediaCacheForTab(tabId) {
-  const normalizedTabId = normalizeTabId(tabId);
-  const prefix = `${normalizedTabId}:`;
-
-  for (const key of contextMenuMediaCache.keys()) {
-    if (key.startsWith(prefix)) {
-      contextMenuMediaCache.delete(key);
-    }
-  }
-}
-
-async function resolveContextMenuMedia(tabId, srcUrl, { useCache = true } = {}) {
-  const normalizedTabId = normalizeTabId(tabId);
-
-  if (!srcUrl || normalizedTabId < 0) {
-    return {
-      displayUrl: srcUrl,
-      uploadUrl: srcUrl,
-      resolveMethod: "fallback"
-    };
-  }
-
-  const cacheKey = contextMenuMediaCacheKey(normalizedTabId, srcUrl);
-  const cached = useCache ? contextMenuMediaCache.get(cacheKey) : null;
-
-  if (cached) {
-    return cached;
-  }
-
-  try {
-    let resolved = await runInTab(
-      normalizedTabId,
-      enumeratePageMediaInPage,
-      [srcUrl]
-    );
-
-    if (resolved?.displayUrl) {
-      resolved = await applyUploadUrlVerification(resolved);
-    }
-
-    if (resolved?.displayUrl && resolved.resolveMethod != null) {
-      contextMenuMediaCache.set(cacheKey, resolved);
-      return resolved;
-    }
-
-    if (resolved?.displayUrl) {
-      return resolved;
-    }
-  } catch (e) {
-    console.warn("Context menu media resolve failed:", e);
-  }
-
-  return {
-    displayUrl: srcUrl,
-    uploadUrl: srcUrl,
-    resolveMethod: "fallback"
-  };
-}
 
 browser.contextMenus.onClicked.addListener(async (info, tab) => {
   const tabId = normalizeTabId(info.tabId ?? tab?.id);
@@ -837,12 +524,7 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     return;
   }
 
-  invalidateContextMenuMediaCacheForTab(tabId);
-  const resolution = await resolveContextMenuMedia(tabId, info.srcUrl, {
-    useCache: false
-  });
-  const srcUrl = resolution.uploadUrl || info.srcUrl;
-  const thumbUrl = resolution.displayUrl || info.srcUrl;
+  const srcUrl = info.srcUrl;
 
   const tabPayload =
     tabId >= 0 ? await probeTabMediaPayload(tabId, srcUrl) : null;
@@ -854,7 +536,6 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
         tabId,
         pageUrl,
         srcUrl,
-        thumbUrl,
         serverId,
         tabPayload: matchingTabPayload
       });
@@ -866,7 +547,6 @@ browser.contextMenus.onClicked.addListener(async (info, tab) => {
     tabId,
     pageUrl,
     srcUrl,
-    thumbUrl,
     serverId,
     tabPayload: matchingTabPayload,
     booruPermissionsPreGranted: true,
@@ -883,14 +563,6 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "fetchGalleryPreviewMedia") {
-    fetchGalleryPreviewMedia(message.payload)
-      .then((result) => sendResponse(result))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
-
-    return true;
-  }
-
   if (message?.type === "fetchMediaByteSize") {
     fetchMediaByteSize(message.payload)
       .then((result) => sendResponse(result))
@@ -899,18 +571,8 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message?.type === "verifyDirectMediaUrl") {
-    verifyDirectMediaUrl(message.payload?.srcUrl, {
-      requestPermission: Boolean(message.payload?.requestPermission)
-    })
-      .then((result) => sendResponse(result))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
-
-    return true;
-  }
-
   if (message?.type === "galleryMediaHostPermissionSettled") {
-    const { granted, srcUrl, serverId, tabId, pageUrl, thumbUrl } = message.payload ?? {};
+    const { granted, srcUrl, serverId, tabId, pageUrl } = message.payload ?? {};
 
     (async () => {
       if (!granted) {
@@ -924,7 +586,6 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         tabId,
         pageUrl,
         srcUrl,
-        thumbUrl: message.payload?.thumbUrl,
         serverId,
         booruPermissionsPreGranted: true,
         mediaPermissionsPreGranted: true
@@ -1029,21 +690,7 @@ browser.tabs.onActivated.addListener((activeInfo) => {
   scheduleContextMenusUpdate(() => syncContextMenuVisibilityForTab(activeInfo.tabId));
 });
 
-function clearContextMenuMediaCacheForTab(tabId) {
-  const prefix = `${tabId}:`;
-
-  for (const key of contextMenuMediaCache.keys()) {
-    if (key.startsWith(prefix)) {
-      contextMenuMediaCache.delete(key);
-    }
-  }
-}
-
 browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.url) {
-    clearContextMenuMediaCacheForTab(tabId);
-  }
-
   if (!changeInfo.url && changeInfo.status !== "complete") {
     return;
   }

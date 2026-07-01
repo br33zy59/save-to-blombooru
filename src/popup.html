@@ -194,6 +194,8 @@
 
       display: flex;
 
+      flex: 1 1 auto;
+
       flex-direction: column;
 
       width: 100%;
@@ -423,6 +425,72 @@
       text-align: center;
 
       padding: 16px 4px;
+
+    }
+
+
+
+    .transfer-history__footer {
+
+      flex: 0 0 auto;
+
+      margin-top: auto;
+
+      padding-top: 6px;
+
+      text-align: right;
+
+    }
+
+
+
+    .transfer-history__clear {
+
+      margin: 0;
+
+      padding: 0;
+
+      border: none;
+
+      background: none;
+
+      font: inherit;
+
+      font-size: 11px;
+
+      color: LinkText;
+
+      cursor: pointer;
+
+      text-decoration: underline;
+
+      text-underline-offset: 2px;
+
+    }
+
+
+
+    .transfer-history__clear:hover {
+
+      color: ActiveText;
+
+    }
+
+
+
+    .transfer-history__clear:focus-visible {
+
+      outline: 2px solid LinkText;
+
+      outline-offset: 2px;
+
+    }
+
+
+
+    .transfer-history__clear[hidden] {
+
+      display: none;
 
     }
 
@@ -1132,34 +1200,6 @@
 
 
 
-    .media-cell--has-full .media-thumb-wrap::before {
-
-      content: "";
-
-      position: absolute;
-
-      top: 4px;
-
-      left: 4px;
-
-      z-index: 2;
-
-      width: 7px;
-
-      height: 7px;
-
-      border-radius: 50%;
-
-      background: LinkText;
-
-      box-shadow: 0 0 0 1px Canvas;
-
-      pointer-events: none;
-
-    }
-
-
-
     .media-thumb-wrap {
 
       position: relative;
@@ -1690,6 +1730,15 @@
             data-i18n="popupTransferHistoryEmpty"
             hidden
           ></p>
+          <div class="transfer-history__footer">
+            <button
+              type="button"
+              id="transferHistoryClear"
+              class="transfer-history__clear"
+              data-i18n="popupTransferHistoryClear"
+              hidden
+            ></button>
+          </div>
         </div>
 
         <div id="galleryHoverPreview" class="gallery-hover-preview" hidden aria-hidden="true">

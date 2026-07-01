@@ -18,7 +18,7 @@ A **Firefox** and **Chrome** extension to push media to a [Blombooru](https://gi
 
   ![Screenshot of the 'page gallery' feature](assets/readme_ss1.png)
 
-- Thumbnail detection - Where thumbnails link to a full-size image or video, you will be offered an option to upload the full item.
+- Saves the exact media URL visible on the page (gallery grid) or under the cursor (right-click)
 
 ## Install
 
@@ -56,7 +56,7 @@ Alternative usage:
 2. A gallery will appear showing all media on the current page
 3. Click the items you wish to push to your booru
 
-**Note:** Media items on the current page will save to your booru immediately. Downstream 'full' images and videos that are linked via thumbnails may prompt for permission to access the remote website. Once this has been allowed, it will remain valid for any other content served from the same web host.
+**Note:** Uploads use the media URL shown in the gallery or the image/video you right-clicked. Cross-origin media may prompt for permission to access the remote website; once allowed, that host stays permitted for future saves.
 
 ## Development / Sideload Install
 

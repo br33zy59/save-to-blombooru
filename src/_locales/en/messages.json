@@ -62,6 +62,9 @@
   "popupTransferHistoryEmpty": {
     "message": "No uploads yet."
   },
+  "popupTransferHistoryClear": {
+    "message": "Clear history"
+  },
   "popupTransferStatusPending": {
     "message": "Uploading"
   },
@@ -70,9 +73,6 @@
   },
   "popupTransferStatusFailure": {
     "message": "Upload failed"
-  },
-  "popupGalleryPreviewDimensionsUnknown": {
-    "message": "Resolution unknown"
   },
   "popupGalleryFilterLabel": {
     "message": "Show"
@@ -302,48 +302,6 @@
   },
   "contextMenuWithHost": {
     "message": "Save to Blombooru ($1$)",
-    "placeholders": {
-      "1": {
-        "content": "$1",
-        "example": "booru.example.com"
-      }
-    }
-  },
-  "contextMenuThumbnailBase": {
-    "message": "Save thumbnail to Blombooru"
-  },
-  "contextMenuThumbnailWithName": {
-    "message": "Save thumbnail to $1$",
-    "placeholders": {
-      "1": {
-        "content": "$1",
-        "example": "Home"
-      }
-    }
-  },
-  "contextMenuThumbnailWithHost": {
-    "message": "Save thumbnail to Blombooru ($1$)",
-    "placeholders": {
-      "1": {
-        "content": "$1",
-        "example": "booru.example.com"
-      }
-    }
-  },
-  "contextMenuFullBase": {
-    "message": "Save full image to Blombooru"
-  },
-  "contextMenuFullWithName": {
-    "message": "Save full image to $1$",
-    "placeholders": {
-      "1": {
-        "content": "$1",
-        "example": "Home"
-      }
-    }
-  },
-  "contextMenuFullWithHost": {
-    "message": "Save full image to Blombooru ($1$)",
     "placeholders": {
       "1": {
         "content": "$1",

@@ -22,6 +22,7 @@ const galleryItemCount = document.getElementById("galleryItemCount");
 const transferHistory = document.getElementById("transferHistory");
 const transferHistoryList = document.getElementById("transferHistoryList");
 const transferHistoryEmpty = document.getElementById("transferHistoryEmpty");
+const transferHistoryClear = document.getElementById("transferHistoryClear");
 
 /** Reserved left column width (must match CSS .gallery-hover-preview-pane). */
 const GALLERY_PREVIEW_PANE_WIDTH = 360;
@@ -94,26 +95,21 @@ let galleryLastSortKey = GALLERY_SORT_DOCUMENT;
 let pageGalleryRefreshId = 0;
 let popupRefreshInFlight = false;
 
-const GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS = 220;
-const galleryRemoteFullPreviewCache = new Map();
 const galleryUploadByteSizeCache = new Map();
 const galleryByteSizeProbeInFlight = new Set();
-const galleryUploadVerificationCache = new Map();
-const galleryUploadVerificationInFlight = new Set();
 let galleryHoverPreviewSession = 0;
 let galleryHoverPreviewContext = null;
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
 const galleryUploadFeedbackTimeouts = new Map();
-let galleryRemoteFullPreviewTimer = null;
 
-function uploadUrlForGalleryItem(item) {
-  return item.uploadUrl || item.displayUrl || item.srcUrl || "";
+function srcUrlForGalleryItem(item) {
+  return item.srcUrl || "";
 }
 
 function galleryFilenameLabel(item) {
-  const uploadUrl = uploadUrlForGalleryItem(item);
+  const srcUrl = srcUrlForGalleryItem(item);
 
-  return previewFilenameFromUrl(uploadUrl) || item.filename || item.kind || "";
+  return previewFilenameFromUrl(srcUrl) || item.filename || item.kind || "";
 }
 
 function clearGalleryUploadByteSizeCache() {
@@ -121,208 +117,35 @@ function clearGalleryUploadByteSizeCache() {
   galleryByteSizeProbeInFlight.clear();
 }
 
-function clearGalleryUploadVerificationCache() {
-  galleryUploadVerificationCache.clear();
-  galleryUploadVerificationInFlight.clear();
-}
-
-function isActiveDistinctUpload(item) {
-  if (!itemHasDistinctUpload(item)) {
-    return false;
-  }
-
-  const uploadUrl = item.uploadUrl || item.displayUrl;
-
-  return galleryUploadVerificationCache.get(uploadUrl) === true;
-}
-
-function downgradeGalleryItemToDisplayUrl(item) {
-  const displayUrl = item.displayUrl || item.srcUrl || item.uploadUrl;
-
-  item.uploadUrl = displayUrl;
-  item.fullOnPage = false;
-  delete item.fullIntrinsicWidth;
-  delete item.fullIntrinsicHeight;
-}
-
-function syncGalleryCellUploadUrl(item) {
-  const displayUrl = item.displayUrl || item.srcUrl;
-  const uploadUrl = item.uploadUrl || displayUrl;
-
-  for (const cell of pageMediaHost.querySelectorAll(".media-cell")) {
-    if (cell.dataset.displayUrl !== displayUrl) {
-      continue;
-    }
-
-    cell.dataset.uploadUrl = uploadUrl;
-    cell.classList.toggle("media-cell--has-full", uploadUrl !== displayUrl);
-    return;
-  }
-}
-
-function refreshGalleryHoverPreviewForItem(item) {
+function refreshGalleryHoverPreviewCaptionIfActive(srcUrl) {
   const context = galleryHoverPreviewContext;
-  const displayUrl = item.displayUrl || item.srcUrl;
 
-  if (!context || context.displayUrl !== displayUrl) {
+  if (!context || context.srcUrl !== srcUrl) {
     return;
   }
 
   if (!galleryHoverPreview.classList.contains("gallery-hover-preview--visible")) {
     return;
   }
-
-  clearGalleryRemoteFullPreviewTimer();
-
-  const uploadUrl = item.uploadUrl || displayUrl;
-  const hasDistinctUpload = isActiveDistinctUpload(item);
-  const showFullOnPage = Boolean(hasDistinctUpload && item.fullOnPage);
-  const needsRemoteFull = Boolean(hasDistinctUpload && !showFullOnPage);
-  const cachedRemote = needsRemoteFull
-    ? galleryRemoteFullPreviewCache.get(uploadUrl)
-    : null;
-  const dimensionsUnknown = Boolean(needsRemoteFull && !cachedRemote);
-  const previewUrl = cachedRemote
-    ? cachedRemote.objectUrl
-    : showFullOnPage
-      ? uploadUrl
-      : displayUrl;
-  const previewWidth = cachedRemote
-    ? cachedRemote.width || context.intrinsicWidth
-    : showFullOnPage
-      ? item.fullIntrinsicWidth || context.intrinsicWidth
-      : context.intrinsicWidth;
-  const previewHeight = cachedRemote
-    ? cachedRemote.height || context.intrinsicHeight
-    : showFullOnPage
-      ? item.fullIntrinsicHeight || context.intrinsicHeight
-      : context.intrinsicHeight;
-  const useVideoPreview = cachedRemote
-    ? cachedRemote.useVideo
-    : showFullOnPage &&
-      item.kind === "video" &&
-      isDirectVideoPreviewUrl(uploadUrl);
-
-  context.uploadUrl = uploadUrl;
-  context.labelUrl = hasDistinctUpload ? uploadUrl : displayUrl;
-  context.fullOnPage = item.fullOnPage;
-  context.fullIntrinsicWidth = item.fullIntrinsicWidth;
-  context.fullIntrinsicHeight = item.fullIntrinsicHeight;
-
-  showGalleryHoverPreview(
-    previewUrl,
-    context.altText,
-    previewWidth,
-    previewHeight,
-    dimensionsUnknown,
-    context.labelUrl,
-    useVideoPreview,
-    uploadUrl
-  );
-
-  if (needsRemoteFull && !cachedRemote) {
-    scheduleGalleryRemoteFullPreviewUpgrade(context);
-  }
-}
-
-async function verifyGalleryUploadTarget(uploadUrl) {
-  if (!uploadUrl || galleryUploadVerificationCache.has(uploadUrl)) {
-    return galleryUploadVerificationCache.get(uploadUrl) === true;
-  }
-
-  if (galleryUploadVerificationInFlight.has(uploadUrl)) {
-    return false;
-  }
-
-  galleryUploadVerificationInFlight.add(uploadUrl);
-
-  try {
-    const result = await browser.runtime.sendMessage({
-      type: "verifyDirectMediaUrl",
-      payload: { srcUrl: uploadUrl }
-    });
-    const ok = result?.ok === true;
-
-    galleryUploadVerificationCache.set(uploadUrl, ok);
-    return ok;
-  } catch (err) {
-    console.warn("Gallery upload URL verification failed:", err);
-    galleryUploadVerificationCache.set(uploadUrl, false);
-    return false;
-  } finally {
-    galleryUploadVerificationInFlight.delete(uploadUrl);
-  }
-}
-
-async function verifyGalleryItemsUploadTargets(items) {
-  const targets = items.filter((item) => itemHasDistinctUpload(item));
-
-  await Promise.all(
-    targets.map(async (item) => {
-      const uploadUrl = item.uploadUrl || item.displayUrl;
-      const ok = await verifyGalleryUploadTarget(uploadUrl);
-
-      if (!ok) {
-        downgradeGalleryItemToDisplayUrl(item);
-        syncGalleryCellUploadUrl(item);
-      }
-
-      refreshGalleryHoverPreviewForItem(item);
-    })
-  );
-}
-
-function refreshGalleryHoverPreviewCaptionIfActive(uploadUrl) {
-  const context = galleryHoverPreviewContext;
-
-  if (!context || context.uploadUrl !== uploadUrl) {
-    return;
-  }
-
-  if (!galleryHoverPreview.classList.contains("gallery-hover-preview--visible")) {
-    return;
-  }
-
-  const cachedRemote = galleryRemoteFullPreviewCache.get(uploadUrl);
-  const hasDistinctUpload = isActiveDistinctUpload({
-    displayUrl: context.displayUrl,
-    uploadUrl: context.uploadUrl
-  });
-  const showFullOnPage = Boolean(hasDistinctUpload && context.fullOnPage);
-  const previewWidth = cachedRemote
-    ? cachedRemote.width || context.intrinsicWidth
-    : showFullOnPage
-      ? context.fullIntrinsicWidth || context.intrinsicWidth
-      : context.intrinsicWidth;
-  const previewHeight = cachedRemote
-    ? cachedRemote.height || context.intrinsicHeight
-    : showFullOnPage
-      ? context.fullIntrinsicHeight || context.intrinsicHeight
-      : context.intrinsicHeight;
-  const dimensionsUnknown = Boolean(
-    hasDistinctUpload && !showFullOnPage && !cachedRemote
-  );
 
   updateGalleryHoverPreviewCaption(
-    context.labelUrl,
-    dimensionsUnknown,
-    previewWidth,
-    previewHeight,
-    context.altText,
-    context.uploadUrl
+    context.srcUrl,
+    context.intrinsicWidth,
+    context.intrinsicHeight,
+    context.altText
   );
 }
 
-function setGalleryUploadByteSize(uploadUrl, byteSize) {
-  if (!uploadUrl || !Number.isFinite(byteSize) || byteSize < 0) {
+function setGalleryUploadByteSize(srcUrl, byteSize) {
+  if (!srcUrl || !Number.isFinite(byteSize) || byteSize < 0) {
     return;
   }
 
-  galleryUploadByteSizeCache.set(uploadUrl, byteSize);
+  galleryUploadByteSizeCache.set(srcUrl, byteSize);
   const formatted = formatFileByteSize(byteSize);
 
   for (const cell of pageMediaHost.querySelectorAll(".media-cell")) {
-    if (cell.dataset.uploadUrl !== uploadUrl) {
+    if (cell.dataset.srcUrl !== srcUrl) {
       continue;
     }
 
@@ -332,7 +155,7 @@ function setGalleryUploadByteSize(uploadUrl, byteSize) {
       const base =
         label.dataset.baseLabel ||
         label.textContent.split(" · ")[0] ||
-        previewFilenameFromUrl(uploadUrl);
+        previewFilenameFromUrl(srcUrl);
 
       label.dataset.baseLabel = base;
       label.textContent = `${base} · ${formatted}`;
@@ -341,61 +164,61 @@ function setGalleryUploadByteSize(uploadUrl, byteSize) {
     cell.dataset.byteSize = String(byteSize);
   }
 
-  refreshGalleryHoverPreviewCaptionIfActive(uploadUrl);
+  refreshGalleryHoverPreviewCaptionIfActive(srcUrl);
 }
 
-async function probeGalleryUploadByteSize(uploadUrl) {
-  if (!uploadUrl || galleryUploadByteSizeCache.has(uploadUrl)) {
+async function probeGalleryUploadByteSize(srcUrl) {
+  if (!srcUrl || galleryUploadByteSizeCache.has(srcUrl)) {
     return;
   }
 
-  if (galleryByteSizeProbeInFlight.has(uploadUrl)) {
+  if (galleryByteSizeProbeInFlight.has(srcUrl)) {
     return;
   }
 
-  galleryByteSizeProbeInFlight.add(uploadUrl);
+  galleryByteSizeProbeInFlight.add(srcUrl);
 
   try {
     const response = await browser.runtime.sendMessage({
       type: "fetchMediaByteSize",
       payload: {
         tabId: gallerySourceTabId,
-        srcUrl: uploadUrl
+        srcUrl
       }
     });
 
     if (response?.ok && Number.isFinite(response.byteSize)) {
-      setGalleryUploadByteSize(uploadUrl, response.byteSize);
+      setGalleryUploadByteSize(srcUrl, response.byteSize);
     }
   } catch (err) {
     console.warn("Gallery byte-size probe failed:", err);
   } finally {
-    galleryByteSizeProbeInFlight.delete(uploadUrl);
+    galleryByteSizeProbeInFlight.delete(srcUrl);
   }
 }
 
 function scheduleGalleryUploadByteSizeProbes(items) {
-  const uploadUrls = new Set();
+  const srcUrls = new Set();
 
   for (const item of items) {
-    const uploadUrl = uploadUrlForGalleryItem(item);
+    const srcUrl = srcUrlForGalleryItem(item);
 
-    if (uploadUrl) {
-      uploadUrls.add(uploadUrl);
+    if (srcUrl) {
+      srcUrls.add(srcUrl);
     }
   }
 
-  for (const uploadUrl of uploadUrls) {
-    void probeGalleryUploadByteSize(uploadUrl);
+  for (const srcUrl of srcUrls) {
+    void probeGalleryUploadByteSize(srcUrl);
   }
 }
 
-function ensureGalleryUploadByteSizeProbed(uploadUrl) {
-  if (!uploadUrl || galleryUploadByteSizeCache.has(uploadUrl)) {
+function ensureGalleryUploadByteSizeProbed(srcUrl) {
+  if (!srcUrl || galleryUploadByteSizeCache.has(srcUrl)) {
     return;
   }
 
-  void probeGalleryUploadByteSize(uploadUrl);
+  void probeGalleryUploadByteSize(srcUrl);
 }
 
 function defaultSortAscending(sortKey) {
@@ -403,7 +226,7 @@ function defaultSortAscending(sortKey) {
 }
 
 function fileExtensionFromItem(item) {
-  const url = item.uploadUrl || item.displayUrl || "";
+  const url = item.srcUrl || "";
   const name = previewFilenameFromUrl(url) || item.filename || "";
 
   const dot = name.lastIndexOf(".");
@@ -726,7 +549,6 @@ function applyGalleryView() {
   const sorted = sortGalleryItems(filtered, galleryViewSort, galleryViewSortAscending);
   renderPageMediaGallery(sorted);
   scheduleGalleryUploadByteSizeProbes(sorted);
-  void verifyGalleryItemsUploadTargets(sorted);
   void applyPendingPopupAlerts();
 }
 
@@ -803,122 +625,6 @@ async function getActiveTab() {
   }
 
   return fallbackTab ?? null;
-}
-
-function clearGalleryRemoteFullPreviewTimer() {
-  if (galleryRemoteFullPreviewTimer != null) {
-    clearTimeout(galleryRemoteFullPreviewTimer);
-    galleryRemoteFullPreviewTimer = null;
-  }
-}
-
-function revokeGalleryRemoteFullPreviewCache() {
-  for (const entry of galleryRemoteFullPreviewCache.values()) {
-    if (entry.objectUrl) {
-      URL.revokeObjectURL(entry.objectUrl);
-    }
-  }
-
-  galleryRemoteFullPreviewCache.clear();
-}
-
-async function ensureGalleryRemoteFullPreview(uploadUrl, kind) {
-  const cached = galleryRemoteFullPreviewCache.get(uploadUrl);
-
-  if (cached) {
-    return cached;
-  }
-
-  const response = await browser.runtime.sendMessage({
-    type: "fetchGalleryPreviewMedia",
-    payload: {
-      tabId: gallerySourceTabId,
-      srcUrl: uploadUrl
-    }
-  });
-
-  if (!response?.ok || !response.base64) {
-    return null;
-  }
-
-  const blob = base64ToBlob(response.base64, response.mimeType);
-  const objectUrl = URL.createObjectURL(blob);
-  const useVideo = kind === "video" && isDirectVideoPreviewUrl(uploadUrl);
-  const byteSize = response.byteSize ?? blob.size;
-  const entry = {
-    objectUrl,
-    width: response.width || 0,
-    height: response.height || 0,
-    byteSize,
-    useVideo
-  };
-
-  galleryRemoteFullPreviewCache.set(uploadUrl, entry);
-  setGalleryUploadByteSize(uploadUrl, byteSize);
-  return entry;
-}
-
-function scheduleGalleryRemoteFullPreviewUpgrade(context) {
-  clearGalleryRemoteFullPreviewTimer();
-
-  galleryRemoteFullPreviewTimer = window.setTimeout(() => {
-    galleryRemoteFullPreviewTimer = null;
-
-    if (!galleryHoverPreviewContext || galleryHoverPreviewContext.token !== context.token) {
-      return;
-    }
-
-    void (async () => {
-      const ok = await verifyGalleryUploadTarget(context.uploadUrl);
-
-      if (!galleryHoverPreviewContext || galleryHoverPreviewContext.token !== context.token) {
-        return;
-      }
-
-      if (!ok) {
-        const item = galleryItems.find(
-          (entry) => (entry.displayUrl || entry.srcUrl) === context.displayUrl
-        );
-
-        if (item) {
-          downgradeGalleryItemToDisplayUrl(item);
-          syncGalleryCellUploadUrl(item);
-          refreshGalleryHoverPreviewForItem(item);
-        }
-
-        return;
-      }
-
-      const entry = await ensureGalleryRemoteFullPreview(context.uploadUrl, context.kind);
-
-      if (!galleryHoverPreviewContext || galleryHoverPreviewContext.token !== context.token) {
-        return;
-      }
-
-      if (!entry) {
-        return;
-      }
-
-      let previewWidth = entry.width;
-      let previewHeight = entry.height;
-
-      if (entry.useVideo && (!previewWidth || !previewHeight)) {
-        previewWidth = context.intrinsicWidth;
-        previewHeight = context.intrinsicHeight;
-      }
-
-      showGalleryHoverPreview(
-        entry.objectUrl,
-        context.altText,
-        previewWidth,
-        previewHeight,
-        false,
-        context.labelUrl,
-        entry.useVideo,
-        context.uploadUrl
-      );
-    })();
-  }, GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS);
 }
 
 function hostnameFromMediaUrl(url) {
@@ -1008,11 +714,13 @@ function renderTransferHistory(entries) {
     transferHistoryList.hidden = true;
     transferHistoryList.replaceChildren();
     transferHistoryEmpty.hidden = false;
+    transferHistoryClear.hidden = true;
     updateTransferHistoryVisibility();
     return;
   }
 
   transferHistoryEmpty.hidden = true;
+  transferHistoryClear.hidden = false;
   transferHistoryList.hidden = false;
   transferHistoryList.replaceChildren();
 
@@ -1025,10 +733,7 @@ function renderTransferHistory(entries) {
     thumb.alt = "";
     thumb.loading = "lazy";
     thumb.decoding = "async";
-    thumb.src = pickTransferHistoryThumbUrl({
-      thumbUrl: entry.thumbUrl,
-      srcUrl: entry.srcUrl
-    });
+    thumb.src = isVideoPreviewUrl(entry.srcUrl) ? "" : entry.srcUrl;
     thumb.addEventListener("error", () => {
       thumb.classList.add("transfer-history__thumb--broken");
       thumb.removeAttribute("src");
@@ -1086,36 +791,11 @@ async function loadTransferHistory() {
   renderTransferHistory(await readTransferHistory());
 }
 
-function galleryThumbUrlForSave(uploadUrl, anchorEl = null) {
-  const cell =
-    anchorEl?.classList?.contains("media-cell")
-      ? anchorEl
-      : findGalleryCellForSrcUrl(uploadUrl);
-
-  if (!cell) {
-    return null;
-  }
-
-  const displayUrl = cell.dataset.displayUrl || "";
-  const cellUploadUrl = cell.dataset.uploadUrl || "";
-
-  if (displayUrl && cellUploadUrl && displayUrl !== cellUploadUrl) {
-    return displayUrl;
-  }
-
-  if (displayUrl && !isVideoPreviewUrl(displayUrl)) {
-    return displayUrl;
-  }
-
-  return null;
-}
-
-function thumbUrlForGallerySave(uploadUrl, anchorEl = null) {
-  return galleryThumbUrlForSave(uploadUrl, anchorEl) || uploadUrl;
-}
+transferHistoryClear.addEventListener("click", () => {
+  void clearTransferHistory();
+});
 
 function hideGalleryHoverPreview() {
-  clearGalleryRemoteFullPreviewTimer();
   galleryHoverPreviewContext = null;
 
   galleryHoverPreview.classList.remove("gallery-hover-preview--visible");
@@ -1174,11 +854,9 @@ function previewFilenameFromUrl(url) {
 
 function updateGalleryHoverPreviewCaption(
   labelUrl,
-  dimensionsUnknown,
   intrinsicWidth,
   intrinsicHeight,
-  altText,
-  uploadUrl = ""
+  altText
 ) {
   const filename = previewFilenameFromUrl(labelUrl) || (altText || "").trim();
 
@@ -1190,14 +868,7 @@ function updateGalleryHoverPreviewCaption(
     galleryHoverPreviewFilename.hidden = true;
   }
 
-  const sizeText = uploadUrl ? formatFileByteSize(galleryUploadByteSizeCache.get(uploadUrl)) : "";
-
-  if (dimensionsUnknown) {
-    const unknown = browser.i18n.getMessage("popupGalleryPreviewDimensionsUnknown");
-    galleryHoverPreviewDimensions.textContent = sizeText ? `${unknown} · ${sizeText}` : unknown;
-    galleryHoverPreviewDimensions.hidden = false;
-    return;
-  }
+  const sizeText = labelUrl ? formatFileByteSize(galleryUploadByteSizeCache.get(labelUrl)) : "";
 
   const width =
     intrinsicWidth ||
@@ -1246,10 +917,8 @@ function computeGalleryPreviewSize(intrinsicWidth, intrinsicHeight, maxWidth, ma
 function layoutGalleryHoverPreview(
   intrinsicWidth,
   intrinsicHeight,
-  dimensionsUnknown,
   labelUrl,
-  altText,
-  uploadUrl = ""
+  altText
 ) {
   const maxHeight = Math.min(GALLERY_PREVIEW_MAX_HEIGHT, window.innerHeight - 24);
   const aspectW =
@@ -1278,14 +947,7 @@ function layoutGalleryHoverPreview(
     galleryHoverPreviewImg.style.height = `${height}px`;
   }
 
-  updateGalleryHoverPreviewCaption(
-    labelUrl,
-    dimensionsUnknown,
-    intrinsicWidth,
-    intrinsicHeight,
-    altText,
-    uploadUrl
-  );
+  updateGalleryHoverPreviewCaption(labelUrl, intrinsicWidth, intrinsicHeight, altText);
 }
 
 function showGalleryHoverPreview(
@@ -1293,10 +955,8 @@ function showGalleryHoverPreview(
   altText,
   intrinsicWidth,
   intrinsicHeight,
-  dimensionsUnknown,
   labelUrl,
-  useVideoPreview = false,
-  uploadUrl = ""
+  useVideoPreview = false
 ) {
   const captionLabelUrl = labelUrl ?? previewUrl;
 
@@ -1307,14 +967,7 @@ function showGalleryHoverPreview(
   transferHistory.hidden = true;
 
   const layout = () => {
-    layoutGalleryHoverPreview(
-      intrinsicWidth,
-      intrinsicHeight,
-      dimensionsUnknown,
-      captionLabelUrl,
-      altText,
-      uploadUrl
-    );
+    layoutGalleryHoverPreview(intrinsicWidth, intrinsicHeight, captionLabelUrl, altText);
   };
 
   if (useVideoPreview) {
@@ -1373,91 +1026,36 @@ function showGalleryHoverPreview(
   }
 }
 
-function itemHasDistinctUpload(item) {
-  const displayUrl = item.displayUrl || item.srcUrl;
-  const uploadUrl = item.uploadUrl || displayUrl;
-
-  return Boolean(displayUrl && uploadUrl && uploadUrl !== displayUrl);
-}
-
 function bindGalleryHoverPreview(cell, item) {
-  const {
-    displayUrl,
-    uploadUrl,
-    intrinsicWidth = 0,
-    intrinsicHeight = 0,
-    fullOnPage = false,
-    fullIntrinsicWidth = 0,
-    fullIntrinsicHeight = 0,
-    kind
-  } = item;
+  const { srcUrl, intrinsicWidth = 0, intrinsicHeight = 0, kind } = item;
   const altText = item.filename || item.kind;
-  const hasDistinctUpload = isActiveDistinctUpload(item);
+  const useVideoPreview = kind === "video" && isDirectVideoPreviewUrl(srcUrl);
 
   cell.addEventListener("mouseover", (event) => {
     if (!cell.contains(event.target)) {
       return;
     }
 
-    const labelUrl = hasDistinctUpload ? uploadUrl : displayUrl;
-    const showFullOnPage = Boolean(hasDistinctUpload && fullOnPage);
-    const needsRemoteFull = Boolean(hasDistinctUpload && !fullOnPage);
-    const cachedRemote = needsRemoteFull
-      ? galleryRemoteFullPreviewCache.get(uploadUrl)
-      : null;
-    const dimensionsUnknown = Boolean(needsRemoteFull && !cachedRemote);
-    const previewUrl = cachedRemote
-      ? cachedRemote.objectUrl
-      : showFullOnPage
-        ? uploadUrl
-        : displayUrl;
-    const previewWidth = cachedRemote
-      ? cachedRemote.width || intrinsicWidth
-      : showFullOnPage
-        ? fullIntrinsicWidth || intrinsicWidth
-        : intrinsicWidth;
-    const previewHeight = cachedRemote
-      ? cachedRemote.height || intrinsicHeight
-      : showFullOnPage
-        ? fullIntrinsicHeight || intrinsicHeight
-        : intrinsicHeight;
-    const useVideoPreview = cachedRemote
-      ? cachedRemote.useVideo
-      : showFullOnPage && kind === "video" && isDirectVideoPreviewUrl(uploadUrl);
-
     const token = ++galleryHoverPreviewSession;
     galleryHoverPreviewContext = {
       token,
-      displayUrl,
-      uploadUrl,
+      srcUrl,
       kind,
       altText,
-      labelUrl,
       intrinsicWidth,
-      intrinsicHeight,
-      fullOnPage,
-      fullIntrinsicWidth,
-      fullIntrinsicHeight
+      intrinsicHeight
     };
 
-    ensureGalleryUploadByteSizeProbed(uploadUrl);
+    ensureGalleryUploadByteSizeProbed(srcUrl);
 
     showGalleryHoverPreview(
-      previewUrl,
+      srcUrl,
       altText,
-      previewWidth,
-      previewHeight,
-      dimensionsUnknown,
-      labelUrl,
-      useVideoPreview,
-      uploadUrl
+      intrinsicWidth,
+      intrinsicHeight,
+      srcUrl,
+      useVideoPreview
     );
-
-    if (needsRemoteFull && !cachedRemote) {
-      scheduleGalleryRemoteFullPreviewUpgrade(galleryHoverPreviewContext);
-    } else {
-      clearGalleryRemoteFullPreviewTimer();
-    }
   });
 }
 
@@ -1642,16 +1240,13 @@ function galleryBooruPermissionPatterns(server) {
   }
 }
 
-function runGalleryMediaHostPermissionRetry(srcUrl, serverId, server, thumbUrl = null) {
+function runGalleryMediaHostPermissionRetry(srcUrl, serverId, server) {
   closeGalleryServerMenu();
   hideGalleryHoverPreview();
 
-  const resolvedThumbUrl = thumbUrl || galleryThumbUrlForSave(srcUrl);
-
   if (hasInstallTimeBroadHostAccess()) {
     void beginGallerySaveWithPermissions(srcUrl, serverId, server, {
-      isMediaHostRetry: true,
-      thumbUrl: resolvedThumbUrl
+      isMediaHostRetry: true
     });
     return;
   }
@@ -1662,15 +1257,13 @@ function runGalleryMediaHostPermissionRetry(srcUrl, serverId, server, thumbUrl =
 
   if (mediaRequests.length === 0) {
     void beginGallerySaveWithPermissions(srcUrl, serverId, server, {
-      isMediaHostRetry: true,
-      thumbUrl: resolvedThumbUrl
+      isMediaHostRetry: true
     });
     return;
   }
 
   const payload = {
     srcUrl,
-    thumbUrl: resolvedThumbUrl,
     serverId,
     tabId: gallerySourceTabId,
     pageUrl: galleryPageUrl
@@ -1786,7 +1379,7 @@ function findGalleryCellForSrcUrl(srcUrl) {
   }
 
   for (const cell of pageMediaHost.querySelectorAll(".media-cell")) {
-    if (cell.dataset.displayUrl === srcUrl || cell.dataset.uploadUrl === srcUrl) {
+    if (cell.dataset.srcUrl === srcUrl) {
       return cell;
     }
   }
@@ -1907,7 +1500,7 @@ async function applyPendingMediaHostRetryUi() {
   }
 }
 
-async function startGallerySave(srcUrl, serverId, tabPayload = null, thumbUrl = null) {
+async function startGallerySave(srcUrl, serverId, tabPayload = null) {
   closeGalleryServerMenu();
 
   try {
@@ -1917,7 +1510,6 @@ async function startGallerySave(srcUrl, serverId, tabPayload = null, thumbUrl = 
         tabId: gallerySourceTabId,
         pageUrl: galleryPageUrl,
         srcUrl,
-        thumbUrl: thumbUrl || galleryThumbUrlForSave(srcUrl),
         serverId,
         tabPayload,
         booruPermissionsPreGranted: true,
@@ -1945,15 +1537,13 @@ async function beginGallerySaveWithPermissions(
   srcUrl,
   serverId,
   server,
-  { isMediaHostRetry = false, thumbUrl = null } = {}
+  { isMediaHostRetry = false } = {}
 ) {
   closeGalleryServerMenu();
 
-  const resolvedThumbUrl = thumbUrl || galleryThumbUrlForSave(srcUrl);
-
   if (hasInstallTimeBroadHostAccess()) {
     await clearMediaHostRetryState();
-    void startGallerySave(srcUrl, serverId, null, resolvedThumbUrl);
+    void startGallerySave(srcUrl, serverId);
     return;
   }
 
@@ -1976,10 +1566,9 @@ async function beginGallerySaveWithPermissions(
           tabId: gallerySourceTabId,
           pageUrl: galleryPageUrl,
           srcUrl,
-          thumbUrl: resolvedThumbUrl,
           serverId
         });
-        mediaHostRetryTarget = { srcUrl, serverId, server, thumbUrl: resolvedThumbUrl };
+        mediaHostRetryTarget = { srcUrl, serverId, server };
         await applyPendingMediaHostRetryUi();
         return;
       }
@@ -1990,12 +1579,7 @@ async function beginGallerySaveWithPermissions(
   }
 
   await clearMediaHostRetryState();
-  void startGallerySave(
-    srcUrl,
-    serverId,
-    tabPayloadForSrcUrl(tabPayload, srcUrl),
-    resolvedThumbUrl
-  );
+  void startGallerySave(srcUrl, serverId, tabPayloadForSrcUrl(tabPayload, srcUrl));
 }
 
 function resolveMediaHostRetryServer() {
@@ -2026,29 +1610,21 @@ function tryHandleGalleryMediaHostRetryClick(srcUrl) {
   return true;
 }
 
-function triggerGallerySave(srcUrl, server, { thumbUrl = null, anchorEl = null } = {}) {
+function triggerGallerySave(srcUrl, server, { anchorEl = null } = {}) {
   const serverId = server.id;
-  const resolvedThumbUrl = thumbUrl || galleryThumbUrlForSave(srcUrl, anchorEl);
   const isMediaHostRetry =
     mediaHostRetryTarget?.srcUrl === srcUrl &&
     mediaHostRetryTarget?.serverId === serverId;
 
   if (isMediaHostRetry) {
-    runGalleryMediaHostPermissionRetry(
-      srcUrl,
-      serverId,
-      server,
-      mediaHostRetryTarget?.thumbUrl || resolvedThumbUrl
-    );
+    runGalleryMediaHostPermissionRetry(srcUrl, serverId, server);
     return;
   }
 
-  void beginGallerySaveWithPermissions(srcUrl, serverId, server, {
-    thumbUrl: resolvedThumbUrl
-  });
+  void beginGallerySaveWithPermissions(srcUrl, serverId, server);
 }
 
-function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl, thumbUrl }) {
+function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl }) {
   const item = document.createElement("button");
   item.type = "button";
   item.className = "gallery-server-menu-item";
@@ -2065,7 +1641,7 @@ function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl, thu
   } else {
     item.addEventListener("click", (event) => {
       event.stopPropagation();
-      triggerGallerySave(srcUrl, server, { thumbUrl });
+      triggerGallerySave(srcUrl, server);
     });
   }
 
@@ -2074,7 +1650,6 @@ function appendGalleryServerMenuItem(server, configured, { disabled, srcUrl, thu
 
 async function openGalleryServerMenu(srcUrl, anchorEl) {
   try {
-    const thumbUrl = galleryThumbUrlForSave(srcUrl, anchorEl);
     const allServers = await getServersFromStorage();
     const { configured, available, onPage } = partitionServersForPage(
       galleryPageUrl,
@@ -2101,13 +1676,12 @@ async function openGalleryServerMenu(srcUrl, anchorEl) {
     for (const server of available) {
       appendGalleryServerMenuItem(server, configured, {
         disabled: false,
-        srcUrl,
-        thumbUrl
+        srcUrl
       });
     }
 
     for (const server of onPage) {
-      appendGalleryServerMenuItem(server, configured, { disabled: true, srcUrl, thumbUrl });
+      appendGalleryServerMenuItem(server, configured, { disabled: true, srcUrl });
     }
 
     anchorEl.appendChild(galleryServerMenu);
@@ -2145,7 +1719,7 @@ async function handleGallerySaveTrigger(srcUrl, anchorEl) {
   }
 
   if (available.length === 1) {
-    triggerGallerySave(srcUrl, available[0], { thumbUrl: galleryThumbUrlForSave(srcUrl, anchorEl), anchorEl });
+    triggerGallerySave(srcUrl, available[0], { anchorEl });
     return;
   }
 
@@ -2165,13 +1739,13 @@ function bindGallerySaveTrigger(element, anchorEl) {
     }
     openGuardUntil = now + 300;
 
-    const uploadUrl = anchorEl.dataset.uploadUrl || anchorEl.dataset.displayUrl || "";
+    const srcUrl = anchorEl.dataset.srcUrl || "";
 
-    if (tryHandleGalleryMediaHostRetryClick(uploadUrl)) {
+    if (tryHandleGalleryMediaHostRetryClick(srcUrl)) {
       return;
     }
 
-    void handleGallerySaveTrigger(uploadUrl, anchorEl);
+    void handleGallerySaveTrigger(srcUrl, anchorEl);
   };
 
   element.addEventListener("click", onSaveTrigger);
@@ -2213,16 +1787,14 @@ function renderPageMediaGallery(items) {
   grid.setAttribute("role", "list");
 
   for (const item of items) {
-    const displayUrl = item.displayUrl || item.srcUrl;
-    const uploadUrl = item.uploadUrl || displayUrl;
+    const srcUrl = item.srcUrl || "";
 
     const cell = document.createElement("div");
     cell.className = "media-cell";
     cell.setAttribute("role", "listitem");
-    cell.dataset.displayUrl = displayUrl;
-    cell.dataset.uploadUrl = uploadUrl;
+    cell.dataset.srcUrl = srcUrl;
     cell.dataset.mediaKind = item.kind;
-    cell.title = displayUrl;
+    cell.title = srcUrl;
 
     const thumbWrap = document.createElement("div");
     thumbWrap.className = "media-thumb-wrap";
@@ -2232,7 +1804,7 @@ function renderPageMediaGallery(items) {
     img.alt = item.filename || "";
     img.loading = "lazy";
     img.decoding = "async";
-    img.src = displayUrl;
+    img.src = srcUrl;
 
     if (item.kind === "video" || item.kind === "animated") {
       img.classList.add("media-thumb--video");
@@ -2263,7 +1835,7 @@ function renderPageMediaGallery(items) {
     label.dataset.baseLabel = filename;
     label.textContent = filename;
 
-    const cachedSize = galleryUploadByteSizeCache.get(uploadUrl);
+    const cachedSize = galleryUploadByteSizeCache.get(srcUrl);
 
     if (cachedSize != null) {
       label.textContent = `${filename} · ${formatFileByteSize(cachedSize)}`;
@@ -2304,9 +1876,7 @@ galleryHoverPreviewPane.addEventListener("mouseleave", (event) => {
 
 async function refreshPageGallery() {
   const refreshId = ++pageGalleryRefreshId;
-  revokeGalleryRemoteFullPreviewCache();
   clearGalleryUploadByteSizeCache();
-  clearGalleryUploadVerificationCache();
   pageMediaSection.hidden = false;
   showPageMediaLoading();
 
@@ -2467,6 +2037,5 @@ void loadGalleryViewPrefs()
   });
 
 window.addEventListener("pagehide", () => {
-  revokeGalleryRemoteFullPreviewCache();
   cancelPopupRetryBannerAutoDismiss();
 });
