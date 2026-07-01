@@ -213,6 +213,133 @@ async function resolveMediaBlob(
 
 const GALLERY_PREVIEW_MAX_BYTES = 20 * 1024 * 1024;
 
+const verifiedDirectMediaCache = new Map();
+
+function isDirectMediaContentType(contentType) {
+  const type = (contentType || "").toLowerCase().split(";")[0].trim();
+
+  return type.startsWith("image/") || type.startsWith("video/");
+}
+
+async function verifyDirectMediaUrlViaGet(srcUrl) {
+  try {
+    const response = await fetch(srcUrl, {
+      method: "GET",
+      headers: { Range: "bytes=0-0" },
+      redirect: "follow"
+    });
+
+    if (!response.ok && response.status !== 206) {
+      return { ok: false };
+    }
+
+    return { ok: isDirectMediaContentType(response.headers.get("Content-Type")) };
+  } catch (err) {
+    return { ok: false };
+  }
+}
+
+async function verifyDirectMediaUrl(srcUrl, { requestPermission = false } = {}) {
+  if (!srcUrl) {
+    return { ok: false };
+  }
+
+  if (verifiedDirectMediaCache.has(srcUrl)) {
+    return verifiedDirectMediaCache.get(srcUrl);
+  }
+
+  if (isDataMediaUrl(srcUrl)) {
+    const result = { ok: isDirectMediaContentType(mimeFromDataUrl(srcUrl)) };
+    verifiedDirectMediaCache.set(srcUrl, result);
+    return result;
+  }
+
+  if (isBlobMediaUrl(srcUrl)) {
+    const result = { ok: true };
+    verifiedDirectMediaCache.set(srcUrl, result);
+    return result;
+  }
+
+  let originPattern;
+
+  try {
+    originPattern = originPatternFromUrl(srcUrl);
+  } catch (err) {
+    originPattern = null;
+  }
+
+  if (!originPattern) {
+    const result = { ok: false };
+    verifiedDirectMediaCache.set(srcUrl, result);
+    return result;
+  }
+
+  const hasPermission = await ensureHostPermission(originPattern, requestPermission);
+
+  if (!hasPermission) {
+    return { ok: false, permission: true };
+  }
+
+  let result;
+
+  try {
+    const headResponse = await fetch(srcUrl, { method: "HEAD", redirect: "follow" });
+
+    if (headResponse.ok) {
+      result = { ok: isDirectMediaContentType(headResponse.headers.get("Content-Type")) };
+    } else if (headResponse.status === 405 || headResponse.status === 501) {
+      result = await verifyDirectMediaUrlViaGet(srcUrl);
+    } else {
+      result = { ok: false };
+    }
+  } catch (err) {
+    result = await verifyDirectMediaUrlViaGet(srcUrl);
+  }
+
+  verifiedDirectMediaCache.set(srcUrl, result);
+  return result;
+}
+
+async function applyUploadUrlVerification(resolved, { requestPermission = false } = {}) {
+  if (!resolved?.displayUrl || !resolved?.uploadUrl) {
+    return resolved;
+  }
+
+  if (resolved.uploadUrl === resolved.displayUrl) {
+    return resolved;
+  }
+
+  const verification = await verifyDirectMediaUrl(resolved.uploadUrl, {
+    requestPermission
+  });
+
+  if (verification.ok) {
+    return resolved;
+  }
+
+  return {
+    ...resolved,
+    uploadUrl: resolved.displayUrl,
+    fullOnPage: false,
+    fullIntrinsicWidth: undefined,
+    fullIntrinsicHeight: undefined
+  };
+}
+
+async function resolveVerifiedUploadUrl(srcUrl, displayFallback, requestPermission) {
+  if (!srcUrl || !displayFallback || srcUrl === displayFallback) {
+    return srcUrl;
+  }
+
+  const verification = await verifyDirectMediaUrl(srcUrl, { requestPermission });
+
+  if (verification.permission || !verification.ok) {
+    return displayFallback;
+  }
+
+  return srcUrl;
+}
+
 async function blobToBase64ForMessage(blob) {
   const buffer = await blob.arrayBuffer();
   const bytes = new Uint8Array(buffer);
@@ -244,6 +371,12 @@ async function dimensionsFromImageBlob(blob) {
 async function fetchGalleryPreviewMedia({ tabId, srcUrl }) {
   if (!srcUrl) {
     return { ok: false, error: "missing_url" };
+  }
+
+  const verification = await verifyDirectMediaUrl(srcUrl, { requestPermission: false });
+
+  if (!verification.ok) {
+    return { ok: false, error: "not_direct_media" };
   }
 
   try {
@@ -534,17 +667,22 @@ async function saveMediaToBlombooru({
     srcUrl,
     thumbUrl
   );
-
-  const transferId = await beginTransferEntry({
-    srcUrl,
-    thumbUrl: resolvedThumbUrl,
-    serverId
-  });
-
   const requestBooruPermission =
     !booruPermissionsPreGranted && !hasInstallTimeBroadHostAccess();
   const requestMediaPermission =
     !mediaPermissionsPreGranted && !hasInstallTimeBroadHostAccess();
+  const uploadSrcUrl = await resolveVerifiedUploadUrl(
+    srcUrl,
+    resolvedThumbUrl || srcUrl,
+    requestMediaPermission
+  );
+
+  const transferId = await beginTransferEntry({
+    srcUrl: uploadSrcUrl,
+    thumbUrl: resolvedThumbUrl,
+    serverId
+  });
+
   const booruOriginPattern = originPatternFromUrl(server.booruUrl);
   const hasBooruAccess = await ensureHostPermission(
     booruOriginPattern,
@@ -561,18 +699,18 @@ async function saveMediaToBlombooru({
     throw new Error(browser.i18n.getMessage("errorUploadHostPermission"));
   }
 
-  const caption = await captureMediaCaption(normalizedTabId, srcUrl);
+  const caption = await captureMediaCaption(normalizedTabId, uploadSrcUrl);
   const description = buildUploadDescription(caption);
 
   let preparedUpload;
   try {
     const mediaBlob = await resolveMediaBlob(
       normalizedTabId,
-      srcUrl,
+      uploadSrcUrl,
       requestMediaPermission,
-      { tabPayload }
+      { tabPayload: tabPayloadForSrcUrl(tabPayload, uploadSrcUrl) }
     );
-    preparedUpload = await prepareMediaForUpload(mediaBlob, srcUrl);
+    preparedUpload = await prepareMediaForUpload(mediaBlob, uploadSrcUrl);
   } catch (err) {
     const message =
       err.message === "unsupported"
@@ -591,7 +729,7 @@ async function saveMediaToBlombooru({
     const uploadResult = await performUpload({
       mediaBlob: preparedUpload.mediaBlob,
       filename: preparedUpload.filename,
-      source: uploadSourceForSave(pageUrl, srcUrl),
+      source: uploadSourceForSave(pageUrl, uploadSrcUrl),
       description,
       serverId: server.id
     });
@@ -645,11 +783,15 @@ async function resolveContextMenuMedia(tabId, srcUrl, { useCache = true } = {}) 
   }
 
   try {
-    const resolved = await runInTab(
+    let resolved = await runInTab(
       normalizedTabId,
       enumeratePageMediaInPage,
       [srcUrl]
     );
+
+    if (resolved?.displayUrl) {
+      resolved = await applyUploadUrlVerification(resolved);
+    }
 
     if (resolved?.displayUrl && resolved.resolveMethod != null) {
       contextMenuMediaCache.set(cacheKey, resolved);
@@ -751,6 +893,16 @@ browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message?.type === "fetchMediaByteSize") {
     fetchMediaByteSize(message.payload)
+      .then((result) => sendResponse(result))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+
+    return true;
+  }
+
+  if (message?.type === "verifyDirectMediaUrl") {
+    verifyDirectMediaUrl(message.payload?.srcUrl, {
+      requestPermission: Boolean(message.payload?.requestPermission)
+    })
       .then((result) => sendResponse(result))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
 

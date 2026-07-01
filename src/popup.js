@@ -98,6 +98,8 @@ const GALLERY_REMOTE_FULL_PREVIEW_DELAY_MS = 220;
 const galleryRemoteFullPreviewCache = new Map();
 const galleryUploadByteSizeCache = new Map();
 const galleryByteSizeProbeInFlight = new Set();
+const galleryUploadVerificationCache = new Map();
+const galleryUploadVerificationInFlight = new Set();
 let galleryHoverPreviewSession = 0;
 let galleryHoverPreviewContext = null;
 /** @type {Map<string, ReturnType<typeof setTimeout>>} */
@@ -119,6 +121,157 @@ function clearGalleryUploadByteSizeCache() {
   galleryByteSizeProbeInFlight.clear();
 }
 
+function clearGalleryUploadVerificationCache() {
+  galleryUploadVerificationCache.clear();
+  galleryUploadVerificationInFlight.clear();
+}
+
+function isActiveDistinctUpload(item) {
+  if (!itemHasDistinctUpload(item)) {
+    return false;
+  }
+
+  const uploadUrl = item.uploadUrl || item.displayUrl;
+
+  return galleryUploadVerificationCache.get(uploadUrl) === true;
+}
+
+function downgradeGalleryItemToDisplayUrl(item) {
+  const displayUrl = item.displayUrl || item.srcUrl || item.uploadUrl;
+
+  item.uploadUrl = displayUrl;
+  item.fullOnPage = false;
+  delete item.fullIntrinsicWidth;
+  delete item.fullIntrinsicHeight;
+}
+
+function syncGalleryCellUploadUrl(item) {
+  const displayUrl = item.displayUrl || item.srcUrl;
+  const uploadUrl = item.uploadUrl || displayUrl;
+
+  for (const cell of pageMediaHost.querySelectorAll(".media-cell")) {
+    if (cell.dataset.displayUrl !== displayUrl) {
+      continue;
+    }
+
+    cell.dataset.uploadUrl = uploadUrl;
+    cell.classList.toggle("media-cell--has-full", uploadUrl !== displayUrl);
+    return;
+  }
+}
+
+function refreshGalleryHoverPreviewForItem(item) {
+  const context = galleryHoverPreviewContext;
+  const displayUrl = item.displayUrl || item.srcUrl;
+
+  if (!context || context.displayUrl !== displayUrl) {
+    return;
+  }
+
+  if (!galleryHoverPreview.classList.contains("gallery-hover-preview--visible")) {
+    return;
+  }
+
+  clearGalleryRemoteFullPreviewTimer();
+
+  const uploadUrl = item.uploadUrl || displayUrl;
+  const hasDistinctUpload = isActiveDistinctUpload(item);
+  const showFullOnPage = Boolean(hasDistinctUpload && item.fullOnPage);
+  const needsRemoteFull = Boolean(hasDistinctUpload && !showFullOnPage);
+  const cachedRemote = needsRemoteFull
+    ? galleryRemoteFullPreviewCache.get(uploadUrl)
+    : null;
+  const dimensionsUnknown = Boolean(needsRemoteFull && !cachedRemote);
+  const previewUrl = cachedRemote
+    ? cachedRemote.objectUrl
+    : showFullOnPage
+      ? uploadUrl
+      : displayUrl;
+  const previewWidth = cachedRemote
+    ? cachedRemote.width || context.intrinsicWidth
+    : showFullOnPage
+      ? item.fullIntrinsicWidth || context.intrinsicWidth
+      : context.intrinsicWidth;
+  const previewHeight = cachedRemote
+    ? cachedRemote.height || context.intrinsicHeight
+    : showFullOnPage
+      ? item.fullIntrinsicHeight || context.intrinsicHeight
+      : context.intrinsicHeight;
+  const useVideoPreview = cachedRemote
+    ? cachedRemote.useVideo
+    : showFullOnPage &&
+      item.kind === "video" &&
+      isDirectVideoPreviewUrl(uploadUrl);
+
+  context.uploadUrl = uploadUrl;
+  context.labelUrl = hasDistinctUpload ? uploadUrl : displayUrl;
+  context.fullOnPage = item.fullOnPage;
+  context.fullIntrinsicWidth = item.fullIntrinsicWidth;
+  context.fullIntrinsicHeight = item.fullIntrinsicHeight;
+
+  showGalleryHoverPreview(
+    previewUrl,
+    context.altText,
+    previewWidth,
+    previewHeight,
+    dimensionsUnknown,
+    context.labelUrl,
+    useVideoPreview,
+    uploadUrl
+  );
+
+  if (needsRemoteFull && !cachedRemote) {
+    scheduleGalleryRemoteFullPreviewUpgrade(context);
+  }
+}
+
+async function verifyGalleryUploadTarget(uploadUrl) {
+  if (!uploadUrl || galleryUploadVerificationCache.has(uploadUrl)) {
+    return galleryUploadVerificationCache.get(uploadUrl) === true;
+  }
+
+  if (galleryUploadVerificationInFlight.has(uploadUrl)) {
+    return false;
+  }
+
+  galleryUploadVerificationInFlight.add(uploadUrl);
+
+  try {
+    const result = await browser.runtime.sendMessage({
+      type: "verifyDirectMediaUrl",
+      payload: { srcUrl: uploadUrl }
+    });
+    const ok = result?.ok === true;
+
+    galleryUploadVerificationCache.set(uploadUrl, ok);
+    return ok;
+  } catch (err) {
+    console.warn("Gallery upload URL verification failed:", err);
+    galleryUploadVerificationCache.set(uploadUrl, false);
+    return false;
+  } finally {
+    galleryUploadVerificationInFlight.delete(uploadUrl);
+  }
+}
+
+async function verifyGalleryItemsUploadTargets(items) {
+  const targets = items.filter((item) => itemHasDistinctUpload(item));
+
+  await Promise.all(
+    targets.map(async (item) => {
+      const uploadUrl = item.uploadUrl || item.displayUrl;
+      const ok = await verifyGalleryUploadTarget(uploadUrl);
+
+      if (!ok) {
+        downgradeGalleryItemToDisplayUrl(item);
+        syncGalleryCellUploadUrl(item);
+      }
+
+      refreshGalleryHoverPreviewForItem(item);
+    })
+  );
+}
+
 function refreshGalleryHoverPreviewCaptionIfActive(uploadUrl) {
   const context = galleryHoverPreviewContext;
 
@@ -131,7 +284,10 @@ function refreshGalleryHoverPreviewCaptionIfActive(uploadUrl) {
   }
 
   const cachedRemote = galleryRemoteFullPreviewCache.get(uploadUrl);
-  const hasDistinctUpload = context.displayUrl && context.uploadUrl !== context.displayUrl;
+  const hasDistinctUpload = isActiveDistinctUpload({
+    displayUrl: context.displayUrl,
+    uploadUrl: context.uploadUrl
+  });
   const showFullOnPage = Boolean(hasDistinctUpload && context.fullOnPage);
   const previewWidth = cachedRemote
     ? cachedRemote.width || context.intrinsicWidth
@@ -570,6 +726,7 @@ function applyGalleryView() {
   const sorted = sortGalleryItems(filtered, galleryViewSort, galleryViewSortAscending);
   renderPageMediaGallery(sorted);
   scheduleGalleryUploadByteSizeProbes(sorted);
+  void verifyGalleryItemsUploadTargets(sorted);
   void applyPendingPopupAlerts();
 }
 
@@ -712,6 +869,26 @@ function scheduleGalleryRemoteFullPreviewUpgrade(context) {
     }
 
     void (async () => {
+      const ok = await verifyGalleryUploadTarget(context.uploadUrl);
+
+      if (!galleryHoverPreviewContext || galleryHoverPreviewContext.token !== context.token) {
+        return;
+      }
+
+      if (!ok) {
+        const item = galleryItems.find(
+          (entry) => (entry.displayUrl || entry.srcUrl) === context.displayUrl
+        );
+
+        if (item) {
+          downgradeGalleryItemToDisplayUrl(item);
+          syncGalleryCellUploadUrl(item);
+          refreshGalleryHoverPreviewForItem(item);
+        }
+
+        return;
+      }
+
       const entry = await ensureGalleryRemoteFullPreview(context.uploadUrl, context.kind);
 
       if (!galleryHoverPreviewContext || galleryHoverPreviewContext.token !== context.token) {
@@ -1215,7 +1392,7 @@ function bindGalleryHoverPreview(cell, item) {
     kind
   } = item;
   const altText = item.filename || item.kind;
-  const hasDistinctUpload = itemHasDistinctUpload(item);
+  const hasDistinctUpload = isActiveDistinctUpload(item);
 
   cell.addEventListener("mouseover", (event) => {
     if (!cell.contains(event.target)) {
@@ -1975,7 +2152,7 @@ async function handleGallerySaveTrigger(srcUrl, anchorEl) {
   await openGalleryServerMenu(srcUrl, anchorEl);
 }
 
-function bindGallerySaveTrigger(element, srcUrl, anchorEl) {
+function bindGallerySaveTrigger(element, anchorEl) {
   let openGuardUntil = 0;
 
   const onSaveTrigger = (event) => {
@@ -1988,17 +2165,19 @@ function bindGallerySaveTrigger(element, srcUrl, anchorEl) {
     }
     openGuardUntil = now + 300;
 
-    if (tryHandleGalleryMediaHostRetryClick(srcUrl)) {
+    const uploadUrl = anchorEl.dataset.uploadUrl || anchorEl.dataset.displayUrl || "";
+
+    if (tryHandleGalleryMediaHostRetryClick(uploadUrl)) {
       return;
     }
 
-    void handleGallerySaveTrigger(srcUrl, anchorEl);
+    void handleGallerySaveTrigger(uploadUrl, anchorEl);
   };
 
   element.addEventListener("click", onSaveTrigger);
 }
 
-function createUploadOverlay(cell, uploadUrl) {
+function createUploadOverlay(cell) {
   const overlay = document.createElement("div");
   overlay.className = "media-choice-overlay media-choice-overlay--single";
 
@@ -2008,7 +2187,7 @@ function createUploadOverlay(cell, uploadUrl) {
   const uploadLabel = browser.i18n.getMessage("popupGalleryUpload");
   uploadButton.title = uploadLabel;
   uploadButton.textContent = uploadLabel;
-  bindGallerySaveTrigger(uploadButton, uploadUrl, cell);
+  bindGallerySaveTrigger(uploadButton, cell);
 
   overlay.appendChild(uploadButton);
   return overlay;
@@ -2074,7 +2253,7 @@ function renderPageMediaGallery(items) {
       thumbWrap.appendChild(badge);
     }
 
-    thumbWrap.appendChild(createUploadOverlay(cell, uploadUrl));
+    thumbWrap.appendChild(createUploadOverlay(cell));
 
     cell.appendChild(thumbWrap);
 
@@ -2127,6 +2306,7 @@ async function refreshPageGallery() {
   const refreshId = ++pageGalleryRefreshId;
   revokeGalleryRemoteFullPreviewCache();
   clearGalleryUploadByteSizeCache();
+  clearGalleryUploadVerificationCache();
   pageMediaSection.hidden = false;
   showPageMediaLoading();
 
